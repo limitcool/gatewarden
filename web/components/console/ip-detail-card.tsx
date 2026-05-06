@@ -59,8 +59,10 @@ const threatLevelConfig = {
 
 export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDetailCardProps) {
   const [copied, setCopied] = useState(false)
+  const hasValidIp = ipInfo.ip !== "未采集" && ipInfo.ip !== "未知" && ipInfo.ip.trim().length > 0
 
   const copyIP = () => {
+    if (!hasValidIp) return
     navigator.clipboard.writeText(ipInfo.ip)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -103,7 +105,7 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
               {ipInfo.version}
             </Badge>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={copyIP}>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={copyIP} disabled={!hasValidIp}>
             <Copy className={cn("h-3.5 w-3.5", copied && "text-status-active")} />
           </Button>
         </div>
@@ -232,18 +234,20 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
         )}
 
         {/* 外部查询链接 */}
-        <div className="pt-3 border-t border-border">
-          <Button variant="ghost" size="sm" className="h-7 text-xs w-full justify-start" asChild>
-            <a
-              href={`https://ipinfo.io/${ipInfo.ip}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-              在 IPInfo.io 查看更多
-            </a>
-          </Button>
-        </div>
+        {hasValidIp && (
+          <div className="pt-3 border-t border-border">
+            <Button variant="ghost" size="sm" className="h-7 text-xs w-full justify-start" asChild>
+              <a
+                href={`https://ipinfo.io/${ipInfo.ip}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                在 IPInfo.io 查看更多
+              </a>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

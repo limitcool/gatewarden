@@ -302,7 +302,7 @@ function parseEventSubtitle(subtitle: string) {
     return {
       method: "GET",
       path: "/",
-      ip: "0.0.0.0",
+      ip: "未采集",
       subject: undefined as string | undefined,
     }
   }
@@ -385,7 +385,7 @@ export function defaultIpInfoFromEventRows(rows: ReturnType<typeof normalizeEven
   const first = rows[0]
   if (!first) {
     return {
-      ip: "0.0.0.0",
+      ip: "未采集",
       version: "IPv4" as const,
       country: "未知",
       city: "未知",

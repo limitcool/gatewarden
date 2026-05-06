@@ -95,7 +95,7 @@ Gatewarden 目前仍处于早期阶段，但已经可以作为本地或单节点
 ### 1. 启动后端
 
 ```powershell
-cargo run -p gatewarden
+cargo run -p gwaf
 ```
 
 默认地址：

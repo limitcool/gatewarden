@@ -33,7 +33,7 @@ jobs:
         run: cargo check
 
       - name: Rust test
-        run: cargo test -p gatewarden
+        run: cargo test -p gwaf
 
       - name: Web typecheck
         run: pnpm --dir web run check

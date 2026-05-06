@@ -4,9 +4,17 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+rust-version.workspace = true
+description = "Structured ingress log ingest helpers for Gatewarden."
+readme = "../../README.crates.md"
+keywords = ["ingest", "logs", "waf", "security"]
+categories = ["network-programming", "web-programming", "authentication"]
 
 [dependencies]
 chrono.workspace = true
-ingress-core = { path = "../ingress-core" }
+ingress-core = { path = "../ingress-core", version = "0.1.1" }
 serde.workspace = true
 serde_json.workspace = true

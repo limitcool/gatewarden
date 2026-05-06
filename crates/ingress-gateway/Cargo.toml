@@ -4,8 +4,16 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+rust-version.workspace = true
+description = "Gateway abstractions and adapters for Gatewarden."
+readme = "../../README.crates.md"
+keywords = ["gateway", "waf", "security"]
+categories = ["network-programming", "web-programming", "authentication"]
 
 [dependencies]
 anyhow.workspace = true
 http.workspace = true
-ingress-core = { path = "../ingress-core" }
+ingress-core = { path = "../ingress-core", version = "0.1.1" }

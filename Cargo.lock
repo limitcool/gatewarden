@@ -595,31 +595,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gatewarden"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "chrono",
- "http",
- "ingress-api",
- "ingress-caddy",
- "ingress-core",
- "ingress-gateway",
- "ingress-policy",
- "ingress-rate-limit",
- "maxminddb",
- "sea-orm",
- "serde",
- "serde_json",
- "serde_yaml",
- "tokio",
- "tower",
- "uuid",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -651,6 +626,31 @@ dependencies = [
  "r-efi",
  "wasip2",
  "wasip3",
+]
+
+[[package]]
+name = "gwaf"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "chrono",
+ "http",
+ "ingress-api",
+ "ingress-caddy",
+ "ingress-core",
+ "ingress-gateway",
+ "ingress-policy",
+ "ingress-rate-limit",
+ "maxminddb",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tower",
+ "uuid",
 ]
 
 [[package]]
@@ -960,7 +960,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-ai"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ingress-core",
  "serde",
@@ -968,7 +968,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ingress-core",
  "serde",
@@ -976,7 +976,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-caddy"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -987,7 +987,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "http",
@@ -996,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-gateway"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "http",
@@ -1005,7 +1005,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-ingest"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "ingress-core",
@@ -1015,14 +1015,14 @@ dependencies = [
 
 [[package]]
 name = "ingress-policy"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ingress-core",
 ]
 
 [[package]]
 name = "ingress-rate-limit"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "ingress-core",

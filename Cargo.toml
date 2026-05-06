@@ -14,9 +14,13 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
-version = "0.1.0"
+version = "0.1.1"
 license = "AGPL-3.0-only"
 authors = ["Gatewarden Contributors"]
+repository = "https://github.com/limitcool/gatewarden"
+homepage = "https://github.com/limitcool/gatewarden"
+documentation = "https://github.com/limitcool/gatewarden#readme"
+rust-version = "1.88"
 
 [workspace.dependencies]
 anyhow = "1.0"

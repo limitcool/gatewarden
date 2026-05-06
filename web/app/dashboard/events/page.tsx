@@ -380,6 +380,7 @@ export default function EventsPage() {
         statusCodeValue={statusCodeFilter}
         onStatusCodeChange={handleStatusCodeChange}
         hostOptions={hostOptions}
+        featuredHostOptions={hostOptions.slice(0, 8)}
         hostValue={hostFilter}
         onHostChange={handleHostChange}
         countryOptions={countryOptions}

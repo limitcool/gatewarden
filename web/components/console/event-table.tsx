@@ -4,6 +4,13 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { 
   AlertCircle, 
   AlertTriangle, 
@@ -93,6 +100,7 @@ const methodColors: Record<string, string> = {
 
 export function EventTable({ events, className, onRowClick, selectedEventId }: EventTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [logEvent, setLogEvent] = useState<EventRow | null>(null)
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
@@ -165,7 +173,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                         {event.host}
                       </div>
                     )}
-                    <div className="text-sm truncate">{event.path}</div>
+                    <div className="text-sm break-all">{event.path}</div>
                   </div>
                 </div>
 
@@ -206,11 +214,12 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                 <div className="flex items-center gap-1.5 min-w-0">
                   <code className={cn(
                     "font-mono text-xs truncate",
+                    event.ip === "未采集" && "text-muted-foreground",
                     event.ipVersion === "IPv6" && "text-[10px]"
                   )}>
                     {event.ip}
                   </code>
-                  {event.ipVersion === "IPv6" && (
+                  {event.ipVersion === "IPv6" && event.ip !== "未采集" && (
                     <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">v6</Badge>
                   )}
                   {(event.isProxy || event.isVPN || event.isTor) && (
@@ -245,11 +254,12 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">IP 地址</span>
                           <div className="flex items-center gap-1">
-                            <code className="text-xs font-mono">{event.ip}</code>
+                            <code className={cn("text-xs font-mono", event.ip === "未采集" && "text-muted-foreground")}>{event.ip}</code>
                             <Button 
                               variant="ghost" 
                               size="sm" 
                               className="h-5 w-5 p-0"
+                              disabled={event.ip === "未采集"}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 copyToClipboard(event.ip)
@@ -336,6 +346,10 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                             <code className="text-[10px] font-mono">{event.host}</code>
                           </div>
                         )}
+                        <div>
+                          <span className="text-xs text-muted-foreground">完整路径</span>
+                          <p className="mt-0.5 break-all font-mono text-[10px] text-foreground">{event.path}</p>
+                        </div>
                         {event.subject && (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">访问主体</span>
@@ -345,13 +359,13 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                         {event.userAgent && (
                           <div>
                             <span className="text-xs text-muted-foreground">User-Agent</span>
-                            <p className="text-[10px] mt-0.5 text-muted-foreground truncate">{event.userAgent}</p>
+                            <p className="mt-0.5 break-all text-[10px] text-muted-foreground">{event.userAgent}</p>
                           </div>
                         )}
                         {(event.asn || event.asnOrg || event.isp) && (
                           <div>
                             <span className="text-xs text-muted-foreground">网络归属</span>
-                            <p className="text-[10px] mt-0.5 text-muted-foreground truncate">
+                            <p className="mt-0.5 break-all text-[10px] text-muted-foreground">
                               {[event.asn, event.asnOrg, event.isp].filter(Boolean).join(" · ")}
                             </p>
                           </div>
@@ -362,7 +376,15 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
-                    <Button variant="outline" size="sm" className="h-7 text-xs">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setLogEvent(event)
+                      }}
+                    >
                       <ExternalLink className="h-3 w-3 mr-1" />
                       查看完整日志
                     </Button>
@@ -383,6 +405,59 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
           </div>
         )}
       </div>
+
+      <Dialog open={logEvent !== null} onOpenChange={(open) => !open && setLogEvent(null)}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>完整请求日志</DialogTitle>
+            <DialogDescription>
+              查看当前事件的完整请求上下文、关联状态和观测采集情况。
+            </DialogDescription>
+          </DialogHeader>
+          {logEvent && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="text-xs text-muted-foreground">访问域名</div>
+                  <div className="mt-1 break-all font-mono text-sm">{logEvent.host ?? "未采集"}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="text-xs text-muted-foreground">请求 ID</div>
+                  <div className="mt-1 break-all font-mono text-sm">{logEvent.requestId ?? "未采集"}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
+                  <div className="text-xs text-muted-foreground">完整路径</div>
+                  <div className="mt-1 break-all font-mono text-sm">{logEvent.path}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="text-xs text-muted-foreground">来源 IP</div>
+                  <div className={cn("mt-1 break-all font-mono text-sm", logEvent.ip === "未采集" && "text-muted-foreground")}>
+                    {logEvent.ip}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="text-xs text-muted-foreground">状态 / 响应时间</div>
+                  <div className="mt-1 text-sm">
+                    {logEvent.statusCode} / {logEvent.responseTime !== undefined ? `${logEvent.responseTime}ms` : "未采集"}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
+                  <div className="text-xs text-muted-foreground">User-Agent</div>
+                  <div className="mt-1 break-all text-sm">{logEvent.userAgent ?? "未采集"}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
+                  <div className="text-xs text-muted-foreground">GeoIP / 观测状态</div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    {logEvent.country || logEvent.city
+                      ? [logEvent.country, logEvent.region, logEvent.city].filter(Boolean).join(" / ")
+                      : "当前事件还没有匹配到公网 GeoIP 或观测日志。"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

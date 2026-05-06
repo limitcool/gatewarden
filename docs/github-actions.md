@@ -11,7 +11,7 @@ Runs on pushes to `main` and pull requests.
 It performs:
 
 - `cargo check`
-- `cargo test -p gatewarden`
+- `cargo test -p gwaf`
 - `pnpm --dir web run check`
 - `pnpm --dir web run build`
 - `docker build -t gatewarden:ci .`

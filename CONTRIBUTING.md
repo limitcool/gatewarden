@@ -31,7 +31,7 @@ pnpm --dir web run build
 Start the backend:
 
 ```powershell
-cargo run -p gatewarden
+cargo run -p gwaf
 ```
 
 Start the web console:

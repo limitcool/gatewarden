@@ -11,11 +11,11 @@ WORKDIR /workspace
 COPY Cargo.toml Cargo.lock ./
 COPY app ./app
 COPY crates ./crates
-RUN cargo build --release -p gatewarden
+RUN cargo build --release -p gwaf
 
 FROM node:22-bookworm-slim
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates gosu tini \
+  && apt-get install -y --no-install-recommends ca-certificates gosu tini wget \
   && useradd --system --create-home --home-dir /opt/gatewarden --shell /usr/sbin/nologin gatewarden \
   && rm -rf /var/lib/apt/lists/*
 

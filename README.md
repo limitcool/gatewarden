@@ -95,7 +95,7 @@ Main directories:
 ### 1. Start the backend
 
 ```powershell
-cargo run -p gatewarden
+cargo run -p gwaf
 ```
 
 Default address:

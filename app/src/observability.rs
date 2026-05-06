@@ -154,7 +154,8 @@ fn parse_caddy_log_line(line: &str) -> Result<Option<HttpObservationInput>> {
     let method = request.method.unwrap_or_else(|| "GET".to_string());
     let path = request.uri.unwrap_or_else(|| "/".to_string());
     let host = request.host.unwrap_or_else(|| "unknown".to_string());
-    let client_ip = request.remote_ip.unwrap_or_else(|| "0.0.0.0".to_string());
+    let client_ip = resolve_observation_client_ip(request.remote_ip.as_deref(), request.headers.as_ref())
+        .unwrap_or_else(|| "unknown".to_string());
     let status_code = i32::from(entry.status.unwrap_or(0));
     let duration_ms = entry
         .duration
@@ -239,6 +240,35 @@ fn extract_header_value_case_insensitive(
         serde_json::Value::String(item) => Some(item.to_string()),
         _ => None,
     }
+}
+
+fn resolve_observation_client_ip(
+    remote_ip: Option<&str>,
+    headers: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Option<String> {
+    normalize_ip_candidate(remote_ip).or_else(|| {
+        ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]
+            .iter()
+            .find_map(|header| {
+                extract_header_value_case_insensitive(headers, header)
+                    .as_deref()
+                    .and_then(|value| normalize_ip_candidate(Some(value)))
+            })
+    })
+}
+
+fn normalize_ip_candidate(value: Option<&str>) -> Option<String> {
+    let raw = value?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    let candidate = raw.split(',').next()?.trim();
+    if candidate.is_empty() {
+        return None;
+    }
+
+    Some(candidate.to_string())
 }
 
 fn extract_header_value_from_value_case_insensitive(

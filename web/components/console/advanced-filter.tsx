@@ -67,6 +67,7 @@ interface AdvancedFilterProps {
   hostOptions?: { label: string; value: string }[]
   hostValue?: string
   onHostChange?: (value: string) => void
+  featuredHostOptions?: { label: string; value: string }[]
   countryOptions?: { label: string; value: string }[]
   countryValue?: string
   onCountryChange?: (value: string) => void
@@ -123,6 +124,7 @@ export function AdvancedFilter({
   hostOptions = [],
   hostValue = "all",
   onHostChange,
+  featuredHostOptions = [],
   countryOptions = [],
   countryValue = "all",
   onCountryChange,
@@ -380,6 +382,31 @@ export function AdvancedFilter({
           )}
         </div>
       </div>
+
+      {featuredHostOptions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">域名:</span>
+          <Button
+            variant={hostValue === "all" ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => onHostChange?.("all")}
+          >
+            全部
+          </Button>
+          {featuredHostOptions.map((host) => (
+            <Button
+              key={host.value}
+              variant={hostValue === host.value ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => onHostChange?.(host.value)}
+            >
+              {host.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* 活跃筛选标签 */}
       {activeFilters.length > 0 && (

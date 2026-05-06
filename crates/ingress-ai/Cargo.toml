@@ -4,7 +4,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+rust-version.workspace = true
+description = "Shared AI-facing types for Gatewarden advisory workflows."
+readme = "../../README.crates.md"
+keywords = ["ai", "waf", "security"]
+categories = ["network-programming", "authentication", "web-programming"]
 
 [dependencies]
-ingress-core = { path = "../ingress-core" }
+ingress-core = { path = "../ingress-core", version = "0.1.1" }
 serde.workspace = true
