@@ -110,7 +110,7 @@ impl ObservabilityService {
 
 #[derive(Debug, Deserialize)]
 struct CaddyLogEntry {
-    ts: Option<String>,
+    ts: Option<serde_json::Value>,
     request: Option<CaddyRequest>,
     status: Option<u16>,
     duration: Option<f64>,
@@ -148,7 +148,7 @@ fn parse_caddy_log_line(line: &str) -> Result<Option<HttpObservationInput>> {
 
     let created_at = entry
         .ts
-        .as_deref()
+        .as_ref()
         .and_then(parse_log_timestamp)
         .unwrap_or_else(Utc::now);
     let method = request.method.unwrap_or_else(|| "GET".to_string());
@@ -203,10 +203,19 @@ fn round_ms(value: f64) -> i64 {
     value.round() as i64
 }
 
-fn parse_log_timestamp(value: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|ts| ts.with_timezone(&Utc))
-        .ok()
+fn parse_log_timestamp(value: &serde_json::Value) -> Option<DateTime<Utc>> {
+    match value {
+        serde_json::Value::String(item) => DateTime::parse_from_rfc3339(item)
+            .map(|ts| ts.with_timezone(&Utc))
+            .ok(),
+        serde_json::Value::Number(item) => {
+            let seconds = item.as_f64()?;
+            let whole = seconds.trunc() as i64;
+            let nanos = ((seconds.fract() * 1_000_000_000.0).round() as u32).min(999_999_999);
+            DateTime::<Utc>::from_timestamp(whole, nanos)
+        }
+        _ => None,
+    }
 }
 
 fn extract_request_id(
