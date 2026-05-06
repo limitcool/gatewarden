@@ -18,8 +18,9 @@ impl AppConfig {
     pub fn load() -> Result<Self> {
         let raw = fs::read_to_string(DEFAULT_CONFIG_PATH)
             .with_context(|| format!("failed to read config file: {DEFAULT_CONFIG_PATH}"))?;
-        let config: Self = serde_yaml::from_str(&raw)
+        let mut config: Self = serde_yaml::from_str(&raw)
             .with_context(|| format!("failed to parse config file: {DEFAULT_CONFIG_PATH}"))?;
+        config.apply_env_overrides();
         config.validate()?;
         Ok(config)
     }
@@ -28,6 +29,15 @@ impl AppConfig {
         self.server.listen_addr()?;
         self.security.validate()?;
         Ok(())
+    }
+
+    fn apply_env_overrides(&mut self) {
+        if let Ok(database_url) = std::env::var("GATEWARDEN_DATABASE_URL") {
+            let trimmed = database_url.trim();
+            if !trimmed.is_empty() {
+                self.database.url = trimmed.to_string();
+            }
+        }
     }
 
 }
