@@ -14,5 +14,5 @@ keywords = ["ai", "waf", "security"]
 categories = ["network-programming", "authentication", "web-programming"]
 
 [dependencies]
-ingress-core = { path = "../ingress-core", version = "0.1.1" }
+ingress-core = { path = "../ingress-core", version = "0.1.2" }
 serde.workspace = true

@@ -29,6 +29,9 @@ security:
     burst: 6
   console_admin_groups:
     - "admin"
+  protected_hosts:
+    - "init.cool"
+    - "accounts.init.cool"
 
 observability:
   caddy_access_log:

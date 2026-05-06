@@ -36,8 +36,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || `Request failed: ${response.status}`)
+    const contentType = response.headers.get("content-type") ?? ""
+    const rawMessage = await response.text()
+    const message = contentType.includes("text/html")
+      ? `请求失败 (${response.status})`
+      : rawMessage.trim() || `Request failed: ${response.status}`
+    throw new Error(message)
   }
 
   return response.json() as Promise<T>
@@ -87,6 +91,8 @@ const exactTextMap: Record<string, string> = {
   "Auth preset: live headers": "鉴权预设: 实时头部",
   "Data source: sqlite": "数据源: SQLite",
   "Response: observed": "响应: 已观测",
+  "Protected hosts": "受保护域名",
+  "all hosts": "全部域名",
   "HTTP observability": "HTTP 观测",
   "Human in the loop": "人工审核",
   "Caddy first": "Caddy 优先",
@@ -145,6 +151,7 @@ function translateText(text: string) {
     [/The product still defaults to reviewable signals before stronger enforcement\./gi, "产品仍默认先展示可审核信号，再逐步升级到更强执行。"],
     [/Status codes and latency are ingested from structured access logs and correlated by request id when available\./gi, "状态码与耗时来自结构化访问日志，并在可用时按请求 ID 关联。"],
     [/The shared traits keep room for Nginx and Traefik later\./gi, "当前接口设计为后续接入 Nginx 和 Traefik 预留了空间。"],
+    [/This view defaults to hosts that are explicitly connected to Gatewarden forward auth\./gi, "当前视图默认只展示显式接入 Gatewarden forward auth 的域名。"],
     [/AI suggestions are translated into explicit rules before activation\./gi, "AI 建议会先转成明确规则，再进入激活流程。"],
     [/Approved AI rules are persisted as ordinary inventory entries after review\./gi, "AI 规则经审核后，会以普通库存条目形式持久化。"],
     [/Rules should be narrow enough that approval is a real decision, not a guess\./gi, "规则范围应足够收敛，让审批成为真实决策，而不是拍脑袋。"],

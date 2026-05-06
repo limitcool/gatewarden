@@ -8,7 +8,10 @@ use ingress_api::{
     RuleRowDto, RulesOverviewDto, SettingsOverviewDto, SettingsStateDto, SuggestionItemDto,
     SuggestionsOverviewDto,
 };
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Debug, Clone)]
 pub struct ConsoleSettingsState {
@@ -177,12 +180,31 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
     }
 
     async fn events(&self) -> Result<ConsoleResponse<EventsOverviewDto>> {
-        let events = self.store.recent_events(12).await?;
-        let observations = self.store.recent_http_observations(40).await?;
+        let protected_hosts = self.config.security.protected_hosts.clone();
+        let protected_host_set = protected_host_set(&protected_hosts);
+        let events = self
+            .store
+            .recent_events(12)
+            .await?
+            .into_iter()
+            .filter(|entry| matches_protected_host(&entry.host, &protected_host_set))
+            .collect::<Vec<_>>();
+        let observations = self
+            .store
+            .recent_http_observations(40)
+            .await?
+            .into_iter()
+            .filter(|entry| matches_protected_host(&entry.host, &protected_host_set))
+            .collect::<Vec<_>>();
         let auth_linked = events.iter().filter(|entry| entry.subject_id.is_some()).count();
         let not_found = observations.iter().filter(|entry| entry.status_code == 404).count();
         let server_errors = observations.iter().filter(|entry| entry.status_code >= 500).count();
         let avg_latency = average_latency(&observations).unwrap_or(0);
+        let protected_hosts_label = if protected_hosts.is_empty() {
+            "all hosts".to_string()
+        } else {
+            protected_hosts.join(", ")
+        };
 
         Ok(ConsoleResponse {
             data: EventsOverviewDto {
@@ -205,7 +227,13 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                     detail("Persistence", "SeaORM + SQLite", "Event stream now prefers real stored security events instead of static-only placeholders."),
                     detail("Decision posture", "Advisory first", "The product still defaults to reviewable signals before stronger enforcement."),
                     detail("HTTP observability", "Caddy JSON log", "Status codes and latency are ingested from structured access logs and correlated by request id when available."),
+                    detail(
+                        "Protected hosts",
+                        &protected_hosts_label,
+                        "This view defaults to hosts that are explicitly connected to Gatewarden forward auth.",
+                    ),
                 ],
+                protected_hosts,
             },
         })
     }
@@ -734,6 +762,22 @@ fn find_matching_observation<'a>(
 
 fn normalize_observation_path(path: &str) -> &str {
     path.split('?').next().unwrap_or(path)
+}
+
+fn protected_host_set(hosts: &[String]) -> HashSet<String> {
+    hosts
+        .iter()
+        .map(|host| host.trim().to_ascii_lowercase())
+        .filter(|host| !host.is_empty())
+        .collect()
+}
+
+fn matches_protected_host(host: &str, protected_hosts: &HashSet<String>) -> bool {
+    if protected_hosts.is_empty() {
+        return true;
+    }
+
+    protected_hosts.contains(&host.trim().to_ascii_lowercase())
 }
 
 fn action_item(title: &str, description: &str, cta: &str) -> ActionItemDto {

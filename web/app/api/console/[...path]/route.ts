@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const upstreamBase = process.env.CONSOLE_API_BASE_URL ?? "http://127.0.0.1:4000"
+const devSnapshotBase = process.env.CONSOLE_DEV_SNAPSHOT_BASE_URL
 
 function buildUpstreamHeaders(request: NextRequest) {
   const headers = new Headers()
@@ -19,15 +20,27 @@ function buildUpstreamHeaders(request: NextRequest) {
 async function handler(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params
   const search = request.nextUrl.search
+  const snapshotUrl = devSnapshotBase ? `${devSnapshotBase}/${path.join("/")}.json` : null
   const upstreamUrl = `${upstreamBase}/api/console/${path.join("/")}${search}`
   const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.text()
 
-  const response = await fetch(upstreamUrl, {
-    method: request.method,
-    headers: buildUpstreamHeaders(request),
-    body,
-    cache: "no-store",
-  })
+  let response: Response
+  try {
+    response = await fetch(upstreamUrl, {
+      method: request.method,
+      headers: buildUpstreamHeaders(request),
+      body,
+      cache: "no-store",
+    })
+  } catch (error) {
+    if (!snapshotUrl || request.method !== "GET") {
+      throw error
+    }
+
+    response = await fetch(snapshotUrl, {
+      cache: "no-store",
+    })
+  }
 
   return new NextResponse(response.body, {
     status: response.status,

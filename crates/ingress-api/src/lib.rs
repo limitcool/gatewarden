@@ -135,6 +135,8 @@ pub struct EventsOverviewDto {
     pub filters: Vec<FilterChipDto>,
     pub stream: Vec<EventItemDto>,
     pub details: Vec<DetailItemDto>,
+    #[serde(default)]
+    pub protected_hosts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

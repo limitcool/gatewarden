@@ -73,6 +73,8 @@ pub struct SecurityConfig {
     pub login_user_limit: RateLimitConfig,
     #[serde(default = "default_console_admin_groups")]
     pub console_admin_groups: Vec<String>,
+    #[serde(default)]
+    pub protected_hosts: Vec<String>,
 }
 
 impl SecurityConfig {

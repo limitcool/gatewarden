@@ -23,12 +23,12 @@ async-trait = "0.1"
 axum.workspace = true
 chrono.workspace = true
 http.workspace = true
-ingress-api = { path = "../crates/ingress-api", version = "0.1.1" }
-ingress-caddy = { path = "../crates/ingress-caddy", version = "0.1.1" }
-ingress-core = { path = "../crates/ingress-core", version = "0.1.1" }
-ingress-gateway = { path = "../crates/ingress-gateway", version = "0.1.1" }
-ingress-policy = { path = "../crates/ingress-policy", version = "0.1.1" }
-ingress-rate-limit = { path = "../crates/ingress-rate-limit", version = "0.1.1" }
+ingress-api = { path = "../crates/ingress-api", version = "0.1.2" }
+ingress-caddy = { path = "../crates/ingress-caddy", version = "0.1.2" }
+ingress-core = { path = "../crates/ingress-core", version = "0.1.2" }
+ingress-gateway = { path = "../crates/ingress-gateway", version = "0.1.2" }
+ingress-policy = { path = "../crates/ingress-policy", version = "0.1.2" }
+ingress-rate-limit = { path = "../crates/ingress-rate-limit", version = "0.1.2" }
 sea-orm = { version = "1.1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
 serde.workspace = true
 serde_json.workspace = true

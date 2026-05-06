@@ -19,6 +19,7 @@ import {
 } from "@/components/console"
 import { Activity, TrendingDown, Clock, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { buildCountryOptions, buildHostOptions, buildLiveEventStats, defaultIpInfoFromEventRows, getEventsOverview, normalizeEventRows, normalizeFilters, normalizeMetrics } from "@/lib/console-api"
 import type { EventsOverviewDto } from "@/lib/console-types"
@@ -181,6 +182,7 @@ export default function EventsPage() {
   }))
 
   const rawEventRows = useMemo(() => normalizeEventRows(data?.stream ?? []), [data?.stream])
+  const protectedHosts = data?.protectedHosts ?? []
   const eventRows = useMemo(() => {
     return rawEventRows.filter((event) => {
       const matchesFilter =
@@ -278,6 +280,17 @@ export default function EventsPage() {
           </Button>
         }
       />
+
+      {protectedHosts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-3">
+          <span className="text-xs text-muted-foreground">当前仅展示受保护域名</span>
+          {protectedHosts.map((host) => (
+            <Badge key={host} variant="secondary" className="h-6 rounded-full px-2.5 text-xs font-medium">
+              {host}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {/* 统计大盘 */}
       {showStats && (

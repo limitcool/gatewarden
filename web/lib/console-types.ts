@@ -99,6 +99,7 @@ export interface EventsOverviewDto {
   filters: FilterChipDto[]
   stream: EventItemDto[]
   details: DetailItemDto[]
+  protectedHosts?: string[]
 }
 
 export interface RulesOverviewDto {
