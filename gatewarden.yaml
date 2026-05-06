@@ -1,0 +1,37 @@
+server:
+  listen_addr: "127.0.0.1:4000"
+
+database:
+  url: "sqlite://app/data/ingress.db?mode=rwc"
+
+identity:
+  mode: "trusted_header"
+  provider_hint: "external-oidc"
+  trusted_headers:
+    authenticated: "X-Authenticated"
+    subject: "Remote-User"
+    email: "Remote-Email"
+    groups: "Remote-Groups"
+    provider: "X-Auth-Provider"
+
+security:
+  admin_shadow_prefixes:
+    - "/admin"
+  login_ip_limit:
+    rule_id: "protect-login-ip"
+    path_prefix: "/api/login"
+    rps: 5
+    burst: 10
+  login_user_limit:
+    rule_id: "protect-login-user"
+    path_prefix: "/api/login"
+    rps: 3
+    burst: 6
+  console_admin_groups:
+    - "admin"
+
+observability:
+  caddy_access_log:
+    enabled: false
+    path: "app/data/caddy-access.jsonl"
+    poll_interval_ms: 1000

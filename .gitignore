@@ -1,0 +1,16 @@
+/.omx/
+/.playwright-mcp/
+/node_modules/
+/web-vite-legacy/
+/.tmp-next-shadcn-admin-dashboard/
+/.tmp-v0-stage/
+/target/
+/app/data/*.db
+/web/.next/
+/web/node_modules/
+/web/tsconfig.tsbuildinfo
+/*.out
+/*.err
+/*.log
+github-shot-*.log
+/*.png

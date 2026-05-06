@@ -1,0 +1,10 @@
+{
+  "name": "gatewarden-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.25.0",
+  "scripts": {
+    "dev": "pnpm --dir web dev",
+    "build:web": "pnpm --dir web build",
+    "check:web": "pnpm --dir web check"
+  }
+}

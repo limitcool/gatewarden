@@ -1,0 +1,10 @@
+.git
+.omx
+.playwright-mcp
+node_modules
+target
+web/.next
+web/node_modules
+*.log
+*.out
+*.err

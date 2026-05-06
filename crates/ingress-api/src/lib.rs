@@ -1,0 +1,175 @@
+use serde::{Deserialize, Serialize};
+
+pub mod routes {
+    pub const DASHBOARD: &str = "/api/console/dashboard";
+    pub const EVENTS: &str = "/api/console/events";
+    pub const RULES: &str = "/api/console/rules";
+    pub const SUGGESTIONS: &str = "/api/console/suggestions";
+    pub const APPROVALS: &str = "/api/console/approvals";
+    pub const SETTINGS: &str = "/api/console/settings";
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsoleResponse<T> {
+    pub data: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilterChipDto {
+    pub label: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetailItemDto {
+    pub label: String,
+    pub value: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricDto {
+    pub label: String,
+    pub value: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventItemDto {
+    pub title: String,
+    pub subtitle: String,
+    pub severity: String,
+    pub status_code: Option<i32>,
+    pub response_time_ms: Option<i64>,
+    pub request_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionItemDto {
+    pub title: String,
+    pub description: String,
+    pub cta: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleRowDto {
+    pub name: String,
+    pub summary: String,
+    pub scope: String,
+    pub status: String,
+    pub mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuggestionItemDto {
+    pub title: String,
+    pub summary: String,
+    pub badge: String,
+    pub primary_action: String,
+    pub secondary_action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalItemDto {
+    pub name: String,
+    pub summary: String,
+    pub badge: String,
+    pub primary_action: String,
+    pub secondary_action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsStateDto {
+    pub subject_header: String,
+    pub email_header: String,
+    pub locale: String,
+    pub notes: String,
+    pub shadow_mode_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardOverviewDto {
+    pub metrics: Vec<DashboardMetricDto>,
+    pub recent_events: Vec<EventItemDto>,
+    pub actions: Vec<ActionItemDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardMetricDto {
+    pub label: String,
+    pub value: String,
+    pub detail: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventsOverviewDto {
+    pub metrics: Vec<MetricDto>,
+    pub filters: Vec<FilterChipDto>,
+    pub stream: Vec<EventItemDto>,
+    pub details: Vec<DetailItemDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RulesOverviewDto {
+    pub metrics: Vec<MetricDto>,
+    pub filters: Vec<FilterChipDto>,
+    pub rules: Vec<RuleRowDto>,
+    pub details: Vec<DetailItemDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuggestionsOverviewDto {
+    pub metrics: Vec<MetricDto>,
+    pub filters: Vec<FilterChipDto>,
+    pub suggestions: Vec<SuggestionItemDto>,
+    pub details: Vec<DetailItemDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalsOverviewDto {
+    pub metrics: Vec<MetricDto>,
+    pub filters: Vec<FilterChipDto>,
+    pub approvals: Vec<ApprovalItemDto>,
+    pub details: Vec<DetailItemDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsOverviewDto {
+    pub metrics: Vec<MetricDto>,
+    pub filters: Vec<FilterChipDto>,
+    pub settings: SettingsStateDto,
+    pub details: Vec<DetailItemDto>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsoleListQuery {
+    pub search: Option<String>,
+    pub status: Option<String>,
+    pub scope: Option<String>,
+    pub mode: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalRequest {
+    pub rule_id: String,
+    pub approved_by: String,
+}
