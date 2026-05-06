@@ -500,6 +500,16 @@ export function buildCountryOptions(rows: EventRow[]) {
   )
 }
 
+export function buildHostOptions(rows: EventRow[]) {
+  return Array.from(
+    new Map(
+      rows
+        .filter((row) => row.host)
+        .map((row) => [row.host as string, { label: row.host as string, value: row.host as string }])
+    ).values()
+  ).sort((a, b) => a.label.localeCompare(b.label))
+}
+
 export async function getDashboardOverview() {
   return request<ConsoleResponse<DashboardOverviewDto>>("/api/console/dashboard")
 }

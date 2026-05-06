@@ -20,7 +20,7 @@ import {
 import { Activity, TrendingDown, Clock, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { buildCountryOptions, buildLiveEventStats, defaultIpInfoFromEventRows, getEventsOverview, normalizeEventRows, normalizeFilters, normalizeMetrics } from "@/lib/console-api"
+import { buildCountryOptions, buildHostOptions, buildLiveEventStats, defaultIpInfoFromEventRows, getEventsOverview, normalizeEventRows, normalizeFilters, normalizeMetrics } from "@/lib/console-api"
 import type { EventsOverviewDto } from "@/lib/console-types"
 import { toast } from "sonner"
 
@@ -32,7 +32,11 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [activeFilters, setActiveFilters] = useState<{ key: string; label: string; value: string }[]>([])
+  const [ipVersionFilter, setIpVersionFilter] = useState("all")
+  const [severityFilter, setSeverityFilter] = useState("all")
   const [statusCodeFilter, setStatusCodeFilter] = useState("all")
+  const [hostFilter, setHostFilter] = useState("all")
+  const [countryFilter, setCountryFilter] = useState("all")
   const [proxyFilters, setProxyFilters] = useState<ProxyFilters>({
     vpn: false,
     proxy: false,
@@ -71,6 +75,7 @@ export default function EventsPage() {
   }
 
   const handleIPVersionChange = (value: string) => {
+    setIpVersionFilter(value)
     if (value !== "all") {
       setActiveFilters(prev => [
         ...prev.filter(f => f.key !== "ipVersion"),
@@ -82,6 +87,7 @@ export default function EventsPage() {
   }
 
   const handleSeverityChange = (value: string) => {
+    setSeverityFilter(value)
     const severityLabels: Record<string, string> = {
       critical: "危险",
       warning: "告警",
@@ -99,6 +105,7 @@ export default function EventsPage() {
   }
 
   const handleCountryChange = (value: string) => {
+    setCountryFilter(value)
     const countryOption = buildCountryOptions(eventRows).find(c => c.value === value)
     if (value !== "all" && countryOption) {
       setActiveFilters(prev => [
@@ -107,6 +114,19 @@ export default function EventsPage() {
       ])
     } else {
       setActiveFilters(prev => prev.filter(f => f.key !== "country"))
+    }
+  }
+
+  const handleHostChange = (value: string) => {
+    setHostFilter(value)
+    const hostOption = buildHostOptions(rawEventRows).find((host) => host.value === value)
+    if (value !== "all" && hostOption) {
+      setActiveFilters((prev) => [
+        ...prev.filter((f) => f.key !== "host"),
+        { key: "host", label: "域名", value: hostOption.label },
+      ])
+    } else {
+      setActiveFilters((prev) => prev.filter((f) => f.key !== "host"))
     }
   }
 
@@ -133,12 +153,21 @@ export default function EventsPage() {
   }
 
   const handleRemoveFilter = (key: string) => {
+    if (key === "ipVersion") setIpVersionFilter("all")
+    if (key === "severity") setSeverityFilter("all")
+    if (key === "statusCode") setStatusCodeFilter("all")
+    if (key === "host") setHostFilter("all")
+    if (key === "country") setCountryFilter("all")
     setActiveFilters(prev => prev.filter(f => f.key !== key))
   }
 
   const handleClearAllFilters = () => {
     setActiveFilters([])
+    setIpVersionFilter("all")
+    setSeverityFilter("all")
     setStatusCodeFilter("all")
+    setHostFilter("all")
+    setCountryFilter("all")
     setProxyFilters({ vpn: false, proxy: false, tor: false, datacenter: false })
   }
 
@@ -164,7 +193,23 @@ export default function EventsPage() {
         keyword.length === 0 ||
         event.ip.toLowerCase().includes(keyword) ||
         event.path.toLowerCase().includes(keyword) ||
+        (event.host ?? "").toLowerCase().includes(keyword) ||
+        (event.subject ?? "").toLowerCase().includes(keyword) ||
         (event.rule ?? "").toLowerCase().includes(keyword)
+
+      const matchesIpVersion =
+        ipVersionFilter === "all" ||
+        (ipVersionFilter === "ipv4" && event.ipVersion === "IPv4") ||
+        (ipVersionFilter === "ipv6" && event.ipVersion === "IPv6")
+
+      const matchesSeverity =
+        severityFilter === "all" || event.severity === severityFilter
+
+      const matchesHost =
+        hostFilter === "all" || event.host === hostFilter
+
+      const matchesCountry =
+        countryFilter === "all" || event.countryCode === countryFilter
 
       const matchesProxy =
         (!proxyFilters.vpn || event.isVPN) &&
@@ -179,13 +224,27 @@ export default function EventsPage() {
         (statusCodeFilter === "5xx" && event.statusCode >= 500 && event.statusCode < 600) ||
         event.statusCode.toString() === statusCodeFilter
 
-      return matchesFilter && matchesSearch && matchesProxy && matchesStatusCode
+      return (
+        matchesFilter &&
+        matchesSearch &&
+        matchesIpVersion &&
+        matchesSeverity &&
+        matchesHost &&
+        matchesCountry &&
+        matchesProxy &&
+        matchesStatusCode
+      )
+    }).sort((a, b) => {
+      const left = a.responseTime ?? -1
+      const right = b.responseTime ?? -1
+      return right - left
     })
-  }, [rawEventRows, activeFilter, searchValue, proxyFilters, statusCodeFilter])
+  }, [rawEventRows, activeFilter, searchValue, ipVersionFilter, severityFilter, hostFilter, countryFilter, proxyFilters, statusCodeFilter])
 
   const fallbackIpInfo = defaultIpInfoFromEventRows(eventRows)
   const stats = buildLiveEventStats(rawEventRows)
   const countryOptions = buildCountryOptions(rawEventRows)
+  const hostOptions = buildHostOptions(rawEventRows)
   const responseStats = useMemo(() => {
     const withResponseTime = rawEventRows.filter((row) => row.responseTime !== undefined)
     const count = withResponseTime.length
@@ -314,10 +373,17 @@ export default function EventsPage() {
         searchValue={searchValue}
         searchPlaceholder="搜索 IP、路径、规则..."
         onSearch={setSearchValue}
+        ipVersionValue={ipVersionFilter}
         onIPVersionChange={handleIPVersionChange}
+        severityValue={severityFilter}
         onSeverityChange={handleSeverityChange}
+        statusCodeValue={statusCodeFilter}
         onStatusCodeChange={handleStatusCodeChange}
+        hostOptions={hostOptions}
+        hostValue={hostFilter}
+        onHostChange={handleHostChange}
         countryOptions={countryOptions}
+        countryValue={countryFilter}
         onCountryChange={handleCountryChange}
         proxyFilters={proxyFilters}
         onProxyFilterChange={setProxyFilters}

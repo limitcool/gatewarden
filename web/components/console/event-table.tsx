@@ -117,7 +117,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
         <div className="w-6"></div>
         <div>请求</div>
         <div>状态</div>
-        <div>响应</div>
+        <div>耗时</div>
         <div>来源 IP</div>
         <div>规则</div>
         <div>时间</div>
@@ -189,7 +189,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                   {event.responseTime !== undefined ? (
                     <span
                       className={cn(
-                        "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium",
+                        "inline-flex min-w-14 items-center justify-center rounded-md border px-2 py-0.5 text-[10px] font-medium tabular-nums",
                         event.responseTime >= 1000 && "border-status-error/40 text-status-error",
                         event.responseTime >= 400 && event.responseTime < 1000 && "border-status-warning/40 text-status-warning",
                         event.responseTime < 400 && "border-status-active/40 text-status-active"

@@ -61,10 +61,18 @@ async fn main() -> Result<()> {
             },
         ])
         .await?;
+    let ip_intel = IpIntelService::new(&config.observability.geoip);
+    if config.observability.geoip.enabled && !ip_intel.is_enabled() {
+        eprintln!(
+            "geoip requested but MMDB is unavailable at {}",
+            ip_intel.database_path()
+        );
+    }
+
     ObservabilityService::new(
         store.clone(),
         config.observability.caddy_access_log.clone(),
-        IpIntelService::new(&config.observability.geoip),
+        ip_intel,
     )
     .start();
     let state = http::AppState::new(store, config, runtime_settings);

@@ -127,28 +127,21 @@ fn default_caddy_poll_interval_ms() -> u64 {
 pub struct GeoIpConfig {
     #[serde(default)]
     pub enabled: bool,
-    #[serde(default = "default_geoip_endpoint")]
-    pub endpoint: String,
-    #[serde(default = "default_geoip_timeout_ms")]
-    pub timeout_ms: u64,
+    #[serde(default = "default_geoip_database_path")]
+    pub database_path: String,
 }
 
 impl Default for GeoIpConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            endpoint: default_geoip_endpoint(),
-            timeout_ms: default_geoip_timeout_ms(),
+            database_path: default_geoip_database_path(),
         }
     }
 }
 
-fn default_geoip_endpoint() -> String {
-    "https://api.ipwho.org/ip".to_string()
-}
-
-fn default_geoip_timeout_ms() -> u64 {
-    1_500
+fn default_geoip_database_path() -> String {
+    "app/data/GeoLite2-City.mmdb".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

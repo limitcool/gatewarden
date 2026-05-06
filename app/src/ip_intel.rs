@@ -1,12 +1,10 @@
 use crate::config::GeoIpConfig;
-use anyhow::Result;
-use reqwest::Client;
-use serde::Deserialize;
+use maxminddb::{geoip2, Reader};
 use std::{
     collections::HashMap,
     net::IpAddr,
+    path::Path,
     sync::Arc,
-    time::Duration,
 };
 use tokio::sync::RwLock;
 
@@ -29,22 +27,42 @@ pub struct IpGeoRecord {
 #[derive(Debug, Clone)]
 pub struct IpIntelService {
     enabled: bool,
-    endpoint: String,
-    client: Client,
+    database_path: String,
+    reader: Option<Arc<Reader<Vec<u8>>>>,
     cache: Arc<RwLock<HashMap<String, Option<IpGeoRecord>>>>,
 }
 
 impl IpIntelService {
     pub fn new(config: &GeoIpConfig) -> Self {
+        let reader = if config.enabled {
+            match Reader::open_readfile(Path::new(&config.database_path)) {
+                Ok(reader) => Some(Arc::new(reader)),
+                Err(error) => {
+                    eprintln!(
+                        "geoip disabled: failed to open MMDB at {}: {error}",
+                        config.database_path
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Self {
-            enabled: config.enabled,
-            endpoint: config.endpoint.trim_end_matches('/').to_string(),
-            client: Client::builder()
-                .timeout(Duration::from_millis(config.timeout_ms.max(250)))
-                .build()
-                .expect("geoip client should build"),
+            enabled: config.enabled && reader.is_some(),
+            database_path: config.database_path.clone(),
+            reader,
             cache: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub fn database_path(&self) -> &str {
+        &self.database_path
     }
 
     pub async fn lookup(&self, ip: &str) -> Option<IpGeoRecord> {
@@ -56,7 +74,7 @@ impl IpIntelService {
             return cached;
         }
 
-        let fetched = self.fetch(ip).await.ok().flatten();
+        let fetched = self.fetch(ip);
         self.cache
             .write()
             .await
@@ -64,44 +82,36 @@ impl IpIntelService {
         fetched
     }
 
-    async fn fetch(&self, ip: &str) -> Result<Option<IpGeoRecord>> {
-        let response = self
-            .client
-            .get(format!("{}/{}", self.endpoint, ip))
-            .send()
-            .await?;
+    fn fetch(&self, ip: &str) -> Option<IpGeoRecord> {
+        let ip_addr = ip.parse::<IpAddr>().ok()?;
+        let reader = self.reader.as_ref()?;
+        let result = reader.lookup(ip_addr).ok()?;
+        let city = result.decode::<geoip2::City<'_>>().ok()??;
 
-        if !response.status().is_success() {
-            return Ok(None);
-        }
+        let country = city.country.names.english.map(ToString::to_string);
+        let country_code = city.country.iso_code.map(ToString::to_string);
+        let region = city
+            .subdivisions
+            .first()
+            .and_then(|item| item.names.english)
+            .map(ToString::to_string);
+        let city_name = city.city.names.english.map(ToString::to_string);
+        let timezone = city.location.time_zone.map(ToString::to_string);
 
-        let payload: IpWhoEnvelope = response.json().await?;
-        if !payload.success {
-            return Ok(None);
-        }
-
-        let data = match payload.data {
-            Some(data) => data,
-            None => return Ok(None),
-        };
-
-        Ok(Some(IpGeoRecord {
-            country: data.country.filter(|value| !value.is_empty()),
-            country_code: data.country_code.filter(|value| !value.is_empty()),
-            region: data.region.filter(|value| !value.is_empty()),
-            city: data.city.filter(|value| !value.is_empty()),
-            timezone: data.time_zone.filter(|value| !value.is_empty()),
-            asn: data
-                .asn
-                .as_ref()
-                .and_then(|value| value.number.map(|item| format!("AS{item}"))),
-            asn_org: data.asn.and_then(|value| value.org).filter(|value| !value.is_empty()),
-            isp: data.connection.and_then(|value| value.isp).filter(|value| !value.is_empty()),
+        Some(IpGeoRecord {
+            country,
+            country_code,
+            region,
+            city: city_name,
+            timezone,
+            asn: None,
+            asn_org: None,
+            isp: None,
             is_proxy: false,
             is_vpn: false,
             is_tor: false,
             is_datacenter: false,
-        }))
+        })
     }
 }
 
@@ -139,42 +149,4 @@ fn is_ipv4_documentation(ip: std::net::Ipv4Addr) -> bool {
 fn is_ipv6_documentation(ip: std::net::Ipv6Addr) -> bool {
     let segments = ip.segments();
     segments[0] == 0x2001 && segments[1] == 0x0db8
-}
-
-#[derive(Debug, Deserialize)]
-struct IpWhoEnvelope {
-    success: bool,
-    data: Option<IpWhoData>,
-}
-
-#[derive(Debug, Deserialize)]
-struct IpWhoData {
-    #[serde(default)]
-    country: Option<String>,
-    #[serde(rename = "countryCode", default)]
-    country_code: Option<String>,
-    #[serde(default)]
-    region: Option<String>,
-    #[serde(default)]
-    city: Option<String>,
-    #[serde(rename = "time_zone", default)]
-    time_zone: Option<String>,
-    #[serde(default)]
-    asn: Option<IpWhoAsn>,
-    #[serde(default)]
-    connection: Option<IpWhoConnection>,
-}
-
-#[derive(Debug, Deserialize)]
-struct IpWhoAsn {
-    #[serde(default)]
-    number: Option<i64>,
-    #[serde(default)]
-    org: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct IpWhoConnection {
-    #[serde(default)]
-    isp: Option<String>,
 }

@@ -56,12 +56,19 @@ interface AdvancedFilterProps {
   onSearch?: (value: string) => void
   // 高级筛选选项
   ipVersionOptions?: { label: string; value: string }[]
+  ipVersionValue?: string
   onIPVersionChange?: (value: string) => void
   severityOptions?: { label: string; value: string }[]
+  severityValue?: string
   onSeverityChange?: (value: string) => void
   statusCodeOptions?: { label: string; value: string }[]
+  statusCodeValue?: string
   onStatusCodeChange?: (value: string) => void
+  hostOptions?: { label: string; value: string }[]
+  hostValue?: string
+  onHostChange?: (value: string) => void
   countryOptions?: { label: string; value: string }[]
+  countryValue?: string
   onCountryChange?: (value: string) => void
   dateRange?: { from?: Date; to?: Date }
   onDateRangeChange?: (range: { from?: Date; to?: Date }) => void
@@ -89,6 +96,7 @@ export function AdvancedFilter({
     { label: "IPv4", value: "ipv4" },
     { label: "IPv6", value: "ipv6" },
   ],
+  ipVersionValue = "all",
   onIPVersionChange,
   severityOptions = [
     { label: "全部级别", value: "all" },
@@ -97,6 +105,7 @@ export function AdvancedFilter({
     { label: "信息", value: "info" },
     { label: "成功", value: "success" },
   ],
+  severityValue = "all",
   onSeverityChange,
   statusCodeOptions = [
     { label: "全部状态", value: "all" },
@@ -109,8 +118,13 @@ export function AdvancedFilter({
     { label: "502 网关错误", value: "502" },
     { label: "504 超时", value: "504" },
   ],
+  statusCodeValue = "all",
   onStatusCodeChange,
+  hostOptions = [],
+  hostValue = "all",
+  onHostChange,
   countryOptions = [],
+  countryValue = "all",
   onCountryChange,
   proxyFilters,
   onProxyFilterChange,
@@ -203,7 +217,7 @@ export function AdvancedFilter({
                     <Globe className="h-3.5 w-3.5" />
                     IP 版本
                   </Label>
-                  <Select onValueChange={onIPVersionChange} defaultValue="all">
+                  <Select onValueChange={onIPVersionChange} value={ipVersionValue}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue placeholder="选择 IP 版本" />
                     </SelectTrigger>
@@ -223,7 +237,7 @@ export function AdvancedFilter({
                     <Tag className="h-3.5 w-3.5" />
                     严重程度
                   </Label>
-                  <Select onValueChange={onSeverityChange} defaultValue="all">
+                  <Select onValueChange={onSeverityChange} value={severityValue}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue placeholder="选择严重程度" />
                     </SelectTrigger>
@@ -243,7 +257,7 @@ export function AdvancedFilter({
                     <CircleDashed className="h-3.5 w-3.5" />
                     状态码
                   </Label>
-                  <Select onValueChange={onStatusCodeChange} defaultValue="all">
+                  <Select onValueChange={onStatusCodeChange} value={statusCodeValue}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue placeholder="选择状态码范围" />
                     </SelectTrigger>
@@ -257,6 +271,29 @@ export function AdvancedFilter({
                   </Select>
                 </div>
 
+                {/* 域名 */}
+                {hostOptions.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-1.5">
+                      <Globe className="h-3.5 w-3.5" />
+                      访问域名
+                    </Label>
+                    <Select onValueChange={onHostChange} value={hostValue}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="选择域名" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all" className="text-xs">全部域名</SelectItem>
+                        {hostOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {/* 国家/地区 */}
                 {countryOptions.length > 0 && (
                   <div className="space-y-2">
@@ -264,7 +301,7 @@ export function AdvancedFilter({
                       <Globe className="h-3.5 w-3.5" />
                       国家/地区
                     </Label>
-                    <Select onValueChange={onCountryChange} defaultValue="all">
+                    <Select onValueChange={onCountryChange} value={countryValue}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="选择国家/地区" />
                       </SelectTrigger>

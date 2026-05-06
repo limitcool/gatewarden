@@ -37,5 +37,4 @@ observability:
     poll_interval_ms: 1000
   geoip:
     enabled: false
-    endpoint: "https://api.ipwho.org/ip"
-    timeout_ms: 1500
+    database_path: "app/data/GeoLite2-City.mmdb"
