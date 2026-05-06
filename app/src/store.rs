@@ -19,6 +19,7 @@ pub struct EventRecordInput {
     pub subject_id: Option<String>,
     pub email: Option<String>,
     pub host: String,
+    pub user_agent: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +46,19 @@ pub struct HttpObservationInput {
     pub upstream_latency_ms: Option<i64>,
     pub service_name: Option<String>,
     pub error_kind: Option<String>,
+    pub user_agent: Option<String>,
+    pub country: Option<String>,
+    pub country_code: Option<String>,
+    pub region: Option<String>,
+    pub city: Option<String>,
+    pub timezone: Option<String>,
+    pub asn: Option<String>,
+    pub asn_org: Option<String>,
+    pub isp: Option<String>,
+    pub is_proxy: Option<bool>,
+    pub is_vpn: Option<bool>,
+    pub is_tor: Option<bool>,
+    pub is_datacenter: Option<bool>,
     pub source: String,
 }
 
@@ -76,6 +90,7 @@ impl Store {
             subject_id: Set(event.subject_id),
             email: Set(event.email),
             host: Set(event.host),
+            user_agent: Set(event.user_agent),
             ..Default::default()
         };
 
@@ -112,6 +127,19 @@ impl Store {
             upstream_latency_ms: Set(event.upstream_latency_ms),
             service_name: Set(event.service_name),
             error_kind: Set(event.error_kind),
+            user_agent: Set(event.user_agent),
+            country: Set(event.country),
+            country_code: Set(event.country_code),
+            region: Set(event.region),
+            city: Set(event.city),
+            timezone: Set(event.timezone),
+            asn: Set(event.asn),
+            asn_org: Set(event.asn_org),
+            isp: Set(event.isp),
+            is_proxy: Set(event.is_proxy),
+            is_vpn: Set(event.is_vpn),
+            is_tor: Set(event.is_tor),
+            is_datacenter: Set(event.is_datacenter),
             source: Set(event.source),
             ..Default::default()
         };
@@ -145,6 +173,19 @@ impl Store {
                 upstream_latency_ms: row.upstream_latency_ms,
                 service_name: row.service_name,
                 error_kind: row.error_kind,
+                user_agent: row.user_agent,
+                country: row.country,
+                country_code: row.country_code,
+                region: row.region,
+                city: row.city,
+                timezone: row.timezone,
+                asn: row.asn,
+                asn_org: row.asn_org,
+                isp: row.isp,
+                is_proxy: row.is_proxy.unwrap_or(false),
+                is_vpn: row.is_vpn.unwrap_or(false),
+                is_tor: row.is_tor.unwrap_or(false),
+                is_datacenter: row.is_datacenter.unwrap_or(false),
                 created_at: row.created_at.into(),
                 source: row.source,
             })
@@ -335,7 +376,8 @@ impl Store {
                         client_ip TEXT NOT NULL,
                         subject_id TEXT NULL,
                         email TEXT NULL,
-                        host TEXT NOT NULL
+                        host TEXT NOT NULL,
+                        user_agent TEXT NULL
                     )
                     "#
                     .to_string(),
@@ -400,6 +442,19 @@ impl Store {
                         upstream_latency_ms INTEGER NULL,
                         service_name TEXT NULL,
                         error_kind TEXT NULL,
+                        user_agent TEXT NULL,
+                        country TEXT NULL,
+                        country_code TEXT NULL,
+                        region TEXT NULL,
+                        city TEXT NULL,
+                        timezone TEXT NULL,
+                        asn TEXT NULL,
+                        asn_org TEXT NULL,
+                        isp TEXT NULL,
+                        is_proxy INTEGER NULL,
+                        is_vpn INTEGER NULL,
+                        is_tor INTEGER NULL,
+                        is_datacenter INTEGER NULL,
                         source TEXT NOT NULL
                     )
                     "#
@@ -407,6 +462,34 @@ impl Store {
                 ))
                 .await
                 .context("failed to create http_observations table")?;
+            self.sqlite_add_column_if_missing("security_events", "user_agent", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "user_agent", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "country", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "country_code", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "region", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "city", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "timezone", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "asn", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "asn_org", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "isp", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "is_proxy", "INTEGER NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "is_vpn", "INTEGER NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "is_tor", "INTEGER NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("http_observations", "is_datacenter", "INTEGER NULL")
+                .await?;
             return Ok(());
         }
 
@@ -427,5 +510,42 @@ impl Store {
             .await
             .context("failed to create http observations schema")?;
         Ok(())
+    }
+
+    async fn sqlite_add_column_if_missing(
+        &self,
+        table: &str,
+        column: &str,
+        definition: &str,
+    ) -> Result<()> {
+        if self.sqlite_has_column(table, column).await? {
+            return Ok(());
+        }
+
+        self.db
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+            ))
+            .await
+            .with_context(|| format!("failed to add column {column} to {table}"))?;
+        Ok(())
+    }
+
+    async fn sqlite_has_column(&self, table: &str, column: &str) -> Result<bool> {
+        let rows = self
+            .db
+            .query_all(Statement::from_string(
+                DbBackend::Sqlite,
+                format!("PRAGMA table_info({table})"),
+            ))
+            .await
+            .with_context(|| format!("failed to inspect sqlite schema for {table}"))?;
+
+        Ok(rows.iter().any(|row| {
+            row.try_get::<String>("", "name")
+                .map(|name| name.eq_ignore_ascii_case(column))
+                .unwrap_or(false)
+        }))
     }
 }

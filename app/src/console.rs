@@ -72,6 +72,19 @@ pub struct HttpObservationState {
     pub upstream_latency_ms: Option<i64>,
     pub service_name: Option<String>,
     pub error_kind: Option<String>,
+    pub user_agent: Option<String>,
+    pub country: Option<String>,
+    pub country_code: Option<String>,
+    pub region: Option<String>,
+    pub city: Option<String>,
+    pub timezone: Option<String>,
+    pub asn: Option<String>,
+    pub asn_org: Option<String>,
+    pub isp: Option<String>,
+    pub is_proxy: bool,
+    pub is_vpn: bool,
+    pub is_tor: bool,
+    pub is_datacenter: bool,
     pub created_at: DateTime<Utc>,
     pub source: String,
 }
@@ -417,6 +430,21 @@ fn map_recent_events(entries: &[security_events::Model]) -> Vec<EventItemDto> {
             None,
             None,
             None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )];
     }
 
@@ -431,6 +459,21 @@ fn map_recent_events(entries: &[security_events::Model]) -> Vec<EventItemDto> {
                 &format!("{} [{}]", entry.reason, entry.action),
                 &subtitle,
                 &entry.action,
+                Some(entry.host.clone()),
+                entry.subject_id.clone(),
+                entry.user_agent.clone(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
                 None,
                 None,
                 Some(entry.request_id.clone()),
@@ -451,17 +494,27 @@ fn map_recent_events_with_observations(
             None,
             None,
             None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
         )];
     }
 
     let mut combined = Vec::new();
     for entry in entries {
-        let observation = observations.iter().find(|item| {
-            item.request_id
-                .as_ref()
-                .map(|request_id| request_id == &entry.request_id)
-                .unwrap_or(false)
-        });
+        let observation = find_matching_observation(entry, observations);
         let subtitle = match (&entry.subject_id, observation) {
             (Some(subject), Some(item)) => format!(
                 "{} {} from {} as {} · {}ms · {}",
@@ -480,6 +533,23 @@ fn map_recent_events_with_observations(
             observation
                 .map(|item| severity_for_status(item.status_code))
                 .unwrap_or(&entry.action),
+            Some(entry.host.clone()),
+            entry.subject_id.clone(),
+            observation
+                .and_then(|item| item.user_agent.clone())
+                .or_else(|| entry.user_agent.clone()),
+            observation.and_then(|item| item.country.clone()),
+            observation.and_then(|item| item.country_code.clone()),
+            observation.and_then(|item| item.region.clone()),
+            observation.and_then(|item| item.city.clone()),
+            observation.and_then(|item| item.timezone.clone()),
+            observation.and_then(|item| item.asn.clone()),
+            observation.and_then(|item| item.asn_org.clone()),
+            observation.and_then(|item| item.isp.clone()),
+            observation.map(|item| item.is_proxy),
+            observation.map(|item| item.is_vpn),
+            observation.map(|item| item.is_tor),
+            observation.map(|item| item.is_datacenter),
             observation.map(|item| item.status_code),
             observation.map(|item| item.duration_ms),
             Some(entry.request_id.clone()),
@@ -513,6 +583,21 @@ fn map_recent_events_with_observations(
             &title,
             &subtitle,
             severity_for_status(observation.status_code),
+            Some(observation.host.clone()),
+            None,
+            observation.user_agent.clone(),
+            observation.country.clone(),
+            observation.country_code.clone(),
+            observation.region.clone(),
+            observation.city.clone(),
+            observation.timezone.clone(),
+            observation.asn.clone(),
+            observation.asn_org.clone(),
+            observation.isp.clone(),
+            Some(observation.is_proxy),
+            Some(observation.is_vpn),
+            Some(observation.is_tor),
+            Some(observation.is_datacenter),
             Some(observation.status_code),
             Some(observation.duration_ms),
             observation.request_id.clone(),
@@ -550,6 +635,21 @@ fn event_item(
     title: &str,
     subtitle: &str,
     severity: &str,
+    host: Option<String>,
+    subject: Option<String>,
+    user_agent: Option<String>,
+    country: Option<String>,
+    country_code: Option<String>,
+    region: Option<String>,
+    city: Option<String>,
+    timezone: Option<String>,
+    asn: Option<String>,
+    asn_org: Option<String>,
+    isp: Option<String>,
+    is_proxy: Option<bool>,
+    is_vpn: Option<bool>,
+    is_tor: Option<bool>,
+    is_datacenter: Option<bool>,
     status_code: Option<i32>,
     response_time_ms: Option<i64>,
     request_id: Option<String>,
@@ -558,6 +658,21 @@ fn event_item(
         title: title.to_string(),
         subtitle: subtitle.to_string(),
         severity: severity.to_string(),
+        host,
+        subject,
+        user_agent,
+        country,
+        country_code,
+        region,
+        city,
+        timezone,
+        asn,
+        asn_org,
+        isp,
+        is_proxy,
+        is_vpn,
+        is_tor,
+        is_datacenter,
         status_code,
         response_time_ms,
         request_id,
@@ -587,6 +702,38 @@ fn percentile_latency(observations: &[HttpObservationState], percentile: usize) 
     values.sort_unstable();
     let index = ((values.len() - 1) * percentile) / 100;
     values.get(index).copied()
+}
+
+fn find_matching_observation<'a>(
+    entry: &security_events::Model,
+    observations: &'a [HttpObservationState],
+) -> Option<&'a HttpObservationState> {
+    observations
+        .iter()
+        .find(|item| {
+            item.request_id
+                .as_ref()
+                .map(|request_id| request_id == &entry.request_id)
+                .unwrap_or(false)
+        })
+        .or_else(|| {
+            observations.iter().find(|item| {
+                item.host == entry.host
+                    && item.client_ip == entry.client_ip
+                    && item.method.eq_ignore_ascii_case(&entry.method)
+                    && normalize_observation_path(&item.path) == entry.path
+                    && item
+                        .created_at
+                        .signed_duration_since(entry.created_at)
+                        .num_seconds()
+                        .abs()
+                        <= 5
+            })
+        })
+}
+
+fn normalize_observation_path(path: &str) -> &str {
+    path.split('?').next().unwrap_or(path)
 }
 
 fn action_item(title: &str, description: &str, cta: &str) -> ActionItemDto {

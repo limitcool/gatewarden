@@ -2,12 +2,14 @@ mod console;
 mod config;
 mod entities;
 mod http;
+mod ip_intel;
 mod observability;
 mod security;
 mod store;
 
 use anyhow::{Context, Result};
 use console::ConsoleSettingsState;
+use ip_intel::IpIntelService;
 use observability::ObservabilityService;
 use std::sync::{Arc, RwLock};
 use tokio::net::TcpListener;
@@ -59,7 +61,12 @@ async fn main() -> Result<()> {
             },
         ])
         .await?;
-    ObservabilityService::new(store.clone(), config.observability.caddy_access_log.clone()).start();
+    ObservabilityService::new(
+        store.clone(),
+        config.observability.caddy_access_log.clone(),
+        IpIntelService::new(&config.observability.geoip),
+    )
+    .start();
     let state = http::AppState::new(store, config, runtime_settings);
     let listener = TcpListener::bind(listen_addr)
         .await

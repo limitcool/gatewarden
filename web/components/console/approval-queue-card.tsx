@@ -7,6 +7,7 @@ import { ScopeBadge } from "./scope-badge"
 interface Approval {
   id?: string
   name: string
+  displayName?: string
   summary: string
   badge: string
   primaryAction: string
@@ -43,7 +44,7 @@ export function ApprovalQueueCard({
             <div className="flex-1 min-w-0 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <code className="text-sm font-mono font-medium text-foreground">
-                  {approval.name}
+                  {approval.displayName ?? approval.name}
                 </code>
                 <ScopeBadge>{approval.badge}</ScopeBadge>
               </div>

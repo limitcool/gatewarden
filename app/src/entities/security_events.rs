@@ -15,6 +15,7 @@ pub struct Model {
     pub subject_id: Option<String>,
     pub email: Option<String>,
     pub host: String,
+    pub user_agent: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

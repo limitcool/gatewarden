@@ -1,5 +1,6 @@
 use crate::{
     config::CaddyAccessLogConfig,
+    ip_intel::IpIntelService,
     store::{HttpObservationInput, Store},
 };
 use anyhow::{Context, Result};
@@ -17,11 +18,20 @@ use std::{
 pub struct ObservabilityService {
     store: Arc<Store>,
     config: CaddyAccessLogConfig,
+    ip_intel: IpIntelService,
 }
 
 impl ObservabilityService {
-    pub fn new(store: Arc<Store>, config: CaddyAccessLogConfig) -> Self {
-        Self { store, config }
+    pub fn new(
+        store: Arc<Store>,
+        config: CaddyAccessLogConfig,
+        ip_intel: IpIntelService,
+    ) -> Self {
+        Self {
+            store,
+            config,
+            ip_intel,
+        }
     }
 
     pub fn start(self) {
@@ -74,7 +84,21 @@ impl ObservabilityService {
             if line.trim().is_empty() {
                 continue;
             }
-            if let Some(observation) = parse_caddy_log_line(&line)? {
+            if let Some(mut observation) = parse_caddy_log_line(&line)? {
+                if let Some(geo) = self.ip_intel.lookup(&observation.client_ip).await {
+                    observation.country = geo.country;
+                    observation.country_code = geo.country_code;
+                    observation.region = geo.region;
+                    observation.city = geo.city;
+                    observation.timezone = geo.timezone;
+                    observation.asn = geo.asn;
+                    observation.asn_org = geo.asn_org;
+                    observation.isp = geo.isp;
+                    observation.is_proxy = Some(geo.is_proxy);
+                    observation.is_vpn = Some(geo.is_vpn);
+                    observation.is_tor = Some(geo.is_tor);
+                    observation.is_datacenter = Some(geo.is_datacenter);
+                }
                 self.store.insert_http_observation(observation).await?;
             }
         }
@@ -139,6 +163,7 @@ fn parse_caddy_log_line(line: &str) -> Result<Option<HttpObservationInput>> {
         .unwrap_or(0);
     let request_id = extract_request_id(request.headers.as_ref(), entry.resp_headers.as_ref());
     let error_kind = entry.error_kind.or_else(|| classify_status(status_code));
+    let user_agent = extract_header_value_case_insensitive(request.headers.as_ref(), "user-agent");
 
     Ok(Some(HttpObservationInput {
         created_at,
@@ -153,6 +178,19 @@ fn parse_caddy_log_line(line: &str) -> Result<Option<HttpObservationInput>> {
         upstream_latency_ms: entry.upstream_latency_ms.map(round_ms),
         service_name: entry.service_name.or(entry.logger),
         error_kind,
+        user_agent,
+        country: None,
+        country_code: None,
+        region: None,
+        city: None,
+        timezone: None,
+        asn: None,
+        asn_org: None,
+        isp: None,
+        is_proxy: None,
+        is_vpn: None,
+        is_tor: None,
+        is_datacenter: None,
         source: "caddy_access_log".to_string(),
     }))
 }
@@ -175,17 +213,18 @@ fn extract_request_id(
     request_headers: Option<&serde_json::Map<String, serde_json::Value>>,
     response_headers: Option<&serde_json::Value>,
 ) -> Option<String> {
-    extract_header_value(request_headers, "X-Request-Id")
-        .or_else(|| extract_header_value(request_headers, "x-request-id"))
-        .or_else(|| extract_header_value_from_value(response_headers, "X-Request-Id"))
-        .or_else(|| extract_header_value_from_value(response_headers, "x-request-id"))
+    extract_header_value_case_insensitive(request_headers, "x-request-id")
+        .or_else(|| extract_header_value_from_value_case_insensitive(response_headers, "x-request-id"))
 }
 
-fn extract_header_value(
+fn extract_header_value_case_insensitive(
     headers: Option<&serde_json::Map<String, serde_json::Value>>,
     key: &str,
 ) -> Option<String> {
-    let value = headers?.get(key)?;
+    let value = headers?
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(key))
+        .map(|(_, value)| value)?;
     match value {
         serde_json::Value::Array(items) => items.first()?.as_str().map(ToString::to_string),
         serde_json::Value::String(item) => Some(item.to_string()),
@@ -193,11 +232,11 @@ fn extract_header_value(
     }
 }
 
-fn extract_header_value_from_value(
+fn extract_header_value_from_value_case_insensitive(
     value: Option<&serde_json::Value>,
     key: &str,
 ) -> Option<String> {
-    extract_header_value(value?.as_object(), key)
+    extract_header_value_case_insensitive(value?.as_object(), key)
 }
 
 fn classify_status(status_code: i32) -> Option<String> {

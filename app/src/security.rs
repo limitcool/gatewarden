@@ -12,6 +12,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
     sync::{Arc, Mutex, RwLock},
 };
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct SecurityService {
@@ -49,8 +50,9 @@ impl SecurityService {
         client_ip: IpAddr,
     ) -> anyhow::Result<GatewayResponse> {
         let adapter = self.adapter();
+        let user_agent = extract_user_agent(&headers);
         let raw_request = RequestContext {
-            request_id: format!("req-{}", Utc::now().timestamp_millis()),
+            request_id: Uuid::new_v4().to_string(),
             received_at: Utc::now(),
             method,
             normalized_path: normalize_path(&path),
@@ -60,7 +62,7 @@ impl SecurityService {
             client_ip,
             scheme,
             host,
-            user_agent: None,
+            user_agent,
             auth: Default::default(),
             gateway: ingress_core::GatewayKind::Caddy,
         };
@@ -95,6 +97,7 @@ impl SecurityService {
                 subject_id: request.auth.subject_id.clone(),
                 email: request.auth.email.clone(),
                 host: request.host.clone(),
+                user_agent: request.user_agent.clone(),
             })
             .await
     }
@@ -295,4 +298,13 @@ pub fn resolve_client_ip(headers: &HeaderMap) -> IpAddr {
         .map(str::trim)
         .and_then(|value| value.parse::<IpAddr>().ok())
         .unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST))
+}
+
+fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("user-agent")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }

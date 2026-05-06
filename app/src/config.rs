@@ -91,6 +91,8 @@ fn default_console_admin_groups() -> Vec<String> {
 pub struct ObservabilityConfig {
     #[serde(default)]
     pub caddy_access_log: CaddyAccessLogConfig,
+    #[serde(default)]
+    pub geoip: GeoIpConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,6 +121,34 @@ fn default_caddy_access_log_path() -> String {
 
 fn default_caddy_poll_interval_ms() -> u64 {
     1_000
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GeoIpConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_geoip_endpoint")]
+    pub endpoint: String,
+    #[serde(default = "default_geoip_timeout_ms")]
+    pub timeout_ms: u64,
+}
+
+impl Default for GeoIpConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint: default_geoip_endpoint(),
+            timeout_ms: default_geoip_timeout_ms(),
+        }
+    }
+}
+
+fn default_geoip_endpoint() -> String {
+    "https://api.ipwho.org/ip".to_string()
+}
+
+fn default_geoip_timeout_ms() -> u64 {
+    1_500
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

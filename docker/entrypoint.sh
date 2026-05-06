@@ -1,7 +1,10 @@
 #!/bin/sh
 set -eu
 
-gatewarden &
+mkdir -p /opt/gatewarden/app/data
+chown -R gatewarden:gatewarden /opt/gatewarden/app/data
+
+gosu gatewarden gatewarden &
 backend_pid=$!
 
 cleanup() {
@@ -11,4 +14,4 @@ cleanup() {
 trap cleanup INT TERM
 
 cd /opt/gatewarden/web
-exec node server.js
+exec gosu gatewarden node server.js

@@ -256,7 +256,8 @@ export function normalizeApprovals(approvals: ApprovalItemDto[]) {
   return approvals.map((item, index) => ({
     id: `approval-${index}`,
     name: item.name,
-    summary: translateText(item.summary),
+    displayName: translateRuleName(item.name),
+    summary: translateRuleSummary(item.summary, item.name),
     badge: translateText(item.badge),
     primaryAction: translateText(item.primaryAction),
     secondaryAction: translateText(item.secondaryAction),
@@ -278,6 +279,11 @@ function translateEventTitle(title: string) {
     .replace("[allow]", "[放行]")
     .replace("[ratelimit]", "[限流]")
     .replace("[deny]", "[拒绝]")
+    .replace("not_found [observe]", "404 访问事件 [观测]")
+    .replace("http.404 [observe]", "404 访问事件 [观测]")
+    .replace("http.500 [observe]", "500 服务错误 [观测]")
+    .replace("http.502 [observe]", "502 网关错误 [观测]")
+    .replace("http.504 [observe]", "504 网关超时 [观测]")
 }
 
 function translateEventSubtitle(subtitle: string) {
@@ -309,6 +315,30 @@ function parseEventSubtitle(subtitle: string) {
   }
 }
 
+function translateRuleName(name: string) {
+  const normalized = name.trim().toLowerCase()
+
+  if (normalized === "protect-admin-surface-v2") {
+    return "保护管理后台访问"
+  }
+  if (normalized === "protect-login-ip" || normalized === "protect-login-user") {
+    return "收紧登录接口限流"
+  }
+
+  return name
+}
+
+function translateRuleSummary(summary: string, ruleName?: string) {
+  if (ruleName?.trim().toLowerCase() === "protect-admin-surface-v2") {
+    return "收紧匿名用户对 /admin 的访问，仅保留已认证运维人员的正常访问。"
+  }
+  if (ruleName?.trim().toLowerCase() === "protect-login-ip" || ruleName?.trim().toLowerCase() === "protect-login-user") {
+    return "针对登录接口增加更严格的限流，降低撞库、爆破和异常重试流量。"
+  }
+
+  return translateText(summary)
+}
+
 export function normalizeEventRows(events: EventItemDto[]) {
   return events.map((event, index) => {
     const parsed = parseEventSubtitle(event.subtitle)
@@ -325,21 +355,28 @@ export function normalizeEventRows(events: EventItemDto[]) {
       timestamp: `${index + 1} 分钟前`,
       method: parsed.method,
       path: parsed.path,
+      host: event.host?.trim() || undefined,
+      subject: event.subject?.trim() || parsed.subject,
       statusCode,
       rule: rule ? translateEventTitle(rule).replace(/\s*\[.*\]/, "") : undefined,
       severity: getSeverity(event.severity),
       ip: parsed.ip,
       ipVersion,
-      country: undefined,
-      countryCode: undefined,
-      city: undefined,
-      isProxy: false,
-      isVPN: false,
-      isTor: false,
-      isDatacenter: false,
-      userAgent: parsed.subject ? `认证主体: ${parsed.subject}` : "匿名请求",
+      country: event.country?.trim() || undefined,
+      countryCode: event.countryCode?.trim() || undefined,
+      region: event.region?.trim() || undefined,
+      city: event.city?.trim() || undefined,
+      timezone: event.timezone?.trim() || undefined,
+      asn: event.asn?.trim() || undefined,
+      asnOrg: event.asnOrg?.trim() || undefined,
+      isp: event.isp?.trim() || undefined,
+      isProxy: event.isProxy ?? false,
+      isVPN: event.isVpn ?? false,
+      isTor: event.isTor ?? false,
+      isDatacenter: event.isDatacenter ?? false,
+      userAgent: event.userAgent?.trim() || undefined,
       responseTime: event.responseTimeMs ?? undefined,
-      requestId: event.requestId ?? `req-live-${index + 1}`,
+      requestId: event.requestId ?? undefined,
     }
   })
 }
@@ -362,7 +399,12 @@ export function defaultIpInfoFromEventRows(rows: ReturnType<typeof normalizeEven
     version: first.ipVersion as "IPv4" | "IPv6",
     country: first.country ?? "未知",
     countryCode: first.countryCode,
+    region: first.region,
     city: first.city,
+    timezone: first.timezone,
+    asn: first.asn,
+    asnOrg: first.asnOrg,
+    isp: first.isp,
     isProxy: first.isProxy,
     isVPN: first.isVPN,
     isTor: first.isTor,

@@ -23,6 +23,21 @@ export interface EventItemDto {
   title: string
   subtitle: string
   severity: string
+  host?: string | null
+  subject?: string | null
+  userAgent?: string | null
+  country?: string | null
+  countryCode?: string | null
+  region?: string | null
+  city?: string | null
+  timezone?: string | null
+  asn?: string | null
+  asnOrg?: string | null
+  isp?: string | null
+  isProxy?: boolean | null
+  isVpn?: boolean | null
+  isTor?: boolean | null
+  isDatacenter?: boolean | null
   statusCode?: number | null
   responseTimeMs?: number | null
   requestId?: string | null

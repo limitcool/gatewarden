@@ -26,6 +26,8 @@ export interface EventRow {
   timestamp: string
   method: string
   path: string
+  host?: string
+  subject?: string
   statusCode: number
   rule?: string
   severity: Severity
@@ -34,7 +36,12 @@ export interface EventRow {
   ipVersion: "IPv4" | "IPv6"
   country?: string
   countryCode?: string
+  region?: string
   city?: string
+  timezone?: string
+  asn?: string
+  asnOrg?: string
+  isp?: string
   // 代理检测
   isProxy?: boolean
   isVPN?: boolean
@@ -106,7 +113,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
   return (
     <div className={cn("rounded-lg border border-border bg-card overflow-hidden", className)}>
       {/* Header */}
-      <div className="grid grid-cols-[auto_1fr_80px_88px_140px_100px_80px] gap-4 px-4 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+      <div className="grid grid-cols-[auto_minmax(0,1.2fr)_80px_88px_160px_120px_80px] gap-4 px-4 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
         <div className="w-6"></div>
         <div>请求</div>
         <div>状态</div>
@@ -129,7 +136,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
               {/* Main Row */}
               <div
                 className={cn(
-                  "grid grid-cols-[auto_1fr_80px_88px_140px_100px_80px] gap-4 px-4 py-3 items-center cursor-pointer transition-colors",
+                  "grid grid-cols-[auto_minmax(0,1.2fr)_80px_88px_160px_120px_80px] gap-4 px-4 py-3 items-center cursor-pointer transition-colors",
                   isSelected ? "bg-accent" : "hover:bg-accent/50"
                 )}
                 onClick={() => {
@@ -152,7 +159,14 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                   <span className={cn("text-xs font-mono font-medium w-12", methodColors[event.method])}>
                     {event.method}
                   </span>
-                  <span className="text-sm truncate">{event.path}</span>
+                  <div className="min-w-0">
+                    {event.host && (
+                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">
+                        {event.host}
+                      </div>
+                    )}
+                    <div className="text-sm truncate">{event.path}</div>
+                  </div>
                 </div>
 
                 {/* Status Code */}
@@ -255,8 +269,15 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                             <span className="text-xs flex items-center gap-1">
                               <MapPin className="h-3 w-3" />
                               {event.country}
-                              {event.city && `, ${event.city}`}
+                              {[event.region, event.city].filter(Boolean).join(", ").length > 0 &&
+                                `, ${[event.region, event.city].filter(Boolean).join(", ")}`}
                             </span>
+                          </div>
+                        )}
+                        {event.timezone && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">时区</span>
+                            <span className="text-xs">{event.timezone}</span>
                           </div>
                         )}
                       </div>
@@ -309,10 +330,30 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                             <span className="text-xs">{event.responseTime}ms</span>
                           </div>
                         )}
+                        {event.host && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">访问域名</span>
+                            <code className="text-[10px] font-mono">{event.host}</code>
+                          </div>
+                        )}
+                        {event.subject && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">访问主体</span>
+                            <code className="text-[10px] font-mono">{event.subject}</code>
+                          </div>
+                        )}
                         {event.userAgent && (
                           <div>
                             <span className="text-xs text-muted-foreground">User-Agent</span>
                             <p className="text-[10px] mt-0.5 text-muted-foreground truncate">{event.userAgent}</p>
+                          </div>
+                        )}
+                        {(event.asn || event.asnOrg || event.isp) && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">网络归属</span>
+                            <p className="text-[10px] mt-0.5 text-muted-foreground truncate">
+                              {[event.asn, event.asnOrg, event.isp].filter(Boolean).join(" · ")}
+                            </p>
                           </div>
                         )}
                       </div>
