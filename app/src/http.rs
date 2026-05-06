@@ -400,6 +400,7 @@ mod tests {
                     burst: 6,
                     },
                     console_admin_groups: vec!["admin".to_string()],
+                    protected_hosts: vec!["accounts.init.cool".to_string()],
                 },
                 observability: config::ObservabilityConfig::default(),
             })
