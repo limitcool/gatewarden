@@ -7,6 +7,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend,
     EntityTrait, QueryFilter, QueryOrder, QuerySelect, Schema, Set, Statement,
 };
+use sea_orm::sea_query::{Index, TableCreateStatement};
 
 #[derive(Debug, Clone)]
 pub struct EventRecordInput {
@@ -354,114 +355,9 @@ impl Store {
     async fn migrate(&self) -> Result<()> {
         let backend = self.db.get_database_backend();
         let schema = Schema::new(backend);
-        let statement = backend.build(&schema.create_table_from_entity(security_events::Entity));
-        let settings_statement = backend.build(&schema.create_table_from_entity(console_settings::Entity));
-        let rules_statement = backend.build(&schema.create_table_from_entity(policy_rules::Entity));
-        let observations_statement =
-            backend.build(&schema.create_table_from_entity(http_observations::Entity));
 
         if backend == DbBackend::Sqlite {
-            self.db
-                .execute(Statement::from_string(
-                    DbBackend::Sqlite,
-                    r#"
-                    CREATE TABLE IF NOT EXISTS security_events (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        created_at TEXT NOT NULL,
-                        request_id TEXT NOT NULL,
-                        action TEXT NOT NULL,
-                        reason TEXT NOT NULL,
-                        path TEXT NOT NULL,
-                        method TEXT NOT NULL,
-                        client_ip TEXT NOT NULL,
-                        subject_id TEXT NULL,
-                        email TEXT NULL,
-                        host TEXT NOT NULL,
-                        user_agent TEXT NULL
-                    )
-                    "#
-                    .to_string(),
-                ))
-                .await
-                .context("failed to create security_events table")?;
-            self.db
-                .execute(Statement::from_string(
-                    DbBackend::Sqlite,
-                    r#"
-                    CREATE TABLE IF NOT EXISTS console_settings (
-                        id INTEGER PRIMARY KEY NOT NULL,
-                        subject_header TEXT NOT NULL,
-                        email_header TEXT NOT NULL,
-                        locale TEXT NOT NULL,
-                        notes TEXT NOT NULL,
-                        shadow_mode_enabled INTEGER NOT NULL,
-                        updated_at TEXT NOT NULL,
-                        updated_by TEXT NULL
-                    )
-                    "#
-                    .to_string(),
-                ))
-                .await
-                .context("failed to create console_settings table")?;
-            self.db
-                .execute(Statement::from_string(
-                    DbBackend::Sqlite,
-                    r#"
-                    CREATE TABLE IF NOT EXISTS policy_rules (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        name TEXT NOT NULL UNIQUE,
-                        summary TEXT NOT NULL,
-                        scope TEXT NOT NULL,
-                        status TEXT NOT NULL,
-                        mode TEXT NOT NULL,
-                        source TEXT NOT NULL,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL,
-                        approved_by TEXT NULL
-                    )
-                    "#
-                    .to_string(),
-                ))
-                .await
-                .context("failed to create policy_rules table")?;
-            self.db
-                .execute(Statement::from_string(
-                    DbBackend::Sqlite,
-                    r#"
-                    CREATE TABLE IF NOT EXISTS http_observations (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        created_at TEXT NOT NULL,
-                        request_id TEXT NULL,
-                        method TEXT NOT NULL,
-                        path TEXT NOT NULL,
-                        host TEXT NOT NULL,
-                        client_ip TEXT NOT NULL,
-                        status_code INTEGER NOT NULL,
-                        duration_ms INTEGER NOT NULL,
-                        upstream_duration_ms INTEGER NULL,
-                        upstream_latency_ms INTEGER NULL,
-                        service_name TEXT NULL,
-                        error_kind TEXT NULL,
-                        user_agent TEXT NULL,
-                        country TEXT NULL,
-                        country_code TEXT NULL,
-                        region TEXT NULL,
-                        city TEXT NULL,
-                        timezone TEXT NULL,
-                        asn TEXT NULL,
-                        asn_org TEXT NULL,
-                        isp TEXT NULL,
-                        is_proxy INTEGER NULL,
-                        is_vpn INTEGER NULL,
-                        is_tor INTEGER NULL,
-                        is_datacenter INTEGER NULL,
-                        source TEXT NOT NULL
-                    )
-                    "#
-                    .to_string(),
-                ))
-                .await
-                .context("failed to create http_observations table")?;
+            self.sqlite_migrate_legacy_schema().await?;
             self.sqlite_add_column_if_missing("security_events", "user_agent", "TEXT NULL")
                 .await?;
             self.sqlite_add_column_if_missing("http_observations", "user_agent", "TEXT NULL")
@@ -490,25 +386,226 @@ impl Store {
                 .await?;
             self.sqlite_add_column_if_missing("http_observations", "is_datacenter", "INTEGER NULL")
                 .await?;
+            self.ensure_indexes().await?;
             return Ok(());
         }
 
+        self.create_entity_table(
+            backend,
+            self.create_table_statement(&schema, security_events::Entity),
+            "failed to create security_events schema",
+        )
+        .await?;
+        self.create_entity_table(
+            backend,
+            self.create_table_statement(&schema, console_settings::Entity),
+            "failed to create console settings schema",
+        )
+        .await?;
+        self.create_entity_table(
+            backend,
+            self.create_table_statement(&schema, policy_rules::Entity),
+            "failed to create policy rules schema",
+        )
+        .await?;
+        self.create_entity_table(
+            backend,
+            self.create_table_statement(&schema, http_observations::Entity),
+            "failed to create http observations schema",
+        )
+        .await?;
+        self.ensure_indexes().await?;
+        Ok(())
+    }
+
+    fn create_table_statement<E>(&self, schema: &Schema, entity: E) -> TableCreateStatement
+    where
+        E: EntityTrait,
+    {
+        let mut statement = schema.create_table_from_entity(entity);
+        statement.if_not_exists();
+        statement
+    }
+
+    async fn create_entity_table(
+        &self,
+        backend: DbBackend,
+        statement: TableCreateStatement,
+        error_message: &str,
+    ) -> Result<()> {
         self.db
-            .execute(statement)
+            .execute(backend.build(&statement))
             .await
-            .context("failed to create schema")?;
+            .context(error_message.to_string())?;
+        Ok(())
+    }
+
+    async fn sqlite_migrate_legacy_schema(&self) -> Result<()> {
         self.db
-            .execute(settings_statement)
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                r#"
+                CREATE TABLE IF NOT EXISTS security_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    request_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    method TEXT NOT NULL,
+                    client_ip TEXT NOT NULL,
+                    subject_id TEXT NULL,
+                    email TEXT NULL,
+                    host TEXT NOT NULL,
+                    user_agent TEXT NULL
+                )
+                "#
+                .to_string(),
+            ))
             .await
-            .context("failed to create console settings schema")?;
+            .context("failed to create security_events table")?;
         self.db
-            .execute(rules_statement)
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                r#"
+                CREATE TABLE IF NOT EXISTS console_settings (
+                    id INTEGER PRIMARY KEY NOT NULL,
+                    subject_header TEXT NOT NULL,
+                    email_header TEXT NOT NULL,
+                    locale TEXT NOT NULL,
+                    notes TEXT NOT NULL,
+                    shadow_mode_enabled INTEGER NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    updated_by TEXT NULL
+                )
+                "#
+                .to_string(),
+            ))
             .await
-            .context("failed to create policy rules schema")?;
+            .context("failed to create console_settings table")?;
         self.db
-            .execute(observations_statement)
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                r#"
+                CREATE TABLE IF NOT EXISTS policy_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL UNIQUE,
+                    summary TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    approved_by TEXT NULL
+                )
+                "#
+                .to_string(),
+            ))
             .await
-            .context("failed to create http observations schema")?;
+            .context("failed to create policy_rules table")?;
+        self.db
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                r#"
+                CREATE TABLE IF NOT EXISTS http_observations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    request_id TEXT NULL,
+                    method TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    host TEXT NOT NULL,
+                    client_ip TEXT NOT NULL,
+                    status_code INTEGER NOT NULL,
+                    duration_ms INTEGER NOT NULL,
+                    upstream_duration_ms INTEGER NULL,
+                    upstream_latency_ms INTEGER NULL,
+                    service_name TEXT NULL,
+                    error_kind TEXT NULL,
+                    user_agent TEXT NULL,
+                    country TEXT NULL,
+                    country_code TEXT NULL,
+                    region TEXT NULL,
+                    city TEXT NULL,
+                    timezone TEXT NULL,
+                    asn TEXT NULL,
+                    asn_org TEXT NULL,
+                    isp TEXT NULL,
+                    is_proxy INTEGER NULL,
+                    is_vpn INTEGER NULL,
+                    is_tor INTEGER NULL,
+                    is_datacenter INTEGER NULL,
+                    source TEXT NOT NULL
+                )
+                "#
+                .to_string(),
+            ))
+            .await
+            .context("failed to create http_observations table")?;
+        Ok(())
+    }
+
+    async fn ensure_indexes(&self) -> Result<()> {
+        let backend = self.db.get_database_backend();
+        let indexes = vec![
+            Index::create()
+                .name("idx-security-events-created-at")
+                .table(security_events::Entity)
+                .col(security_events::Column::CreatedAt)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-security-events-request-id")
+                .table(security_events::Entity)
+                .col(security_events::Column::RequestId)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-security-events-host")
+                .table(security_events::Entity)
+                .col(security_events::Column::Host)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-http-observations-created-at")
+                .table(http_observations::Entity)
+                .col(http_observations::Column::CreatedAt)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-http-observations-request-id")
+                .table(http_observations::Entity)
+                .col(http_observations::Column::RequestId)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-http-observations-host-client-ip")
+                .table(http_observations::Entity)
+                .col(http_observations::Column::Host)
+                .col(http_observations::Column::ClientIp)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-http-observations-status-code")
+                .table(http_observations::Entity)
+                .col(http_observations::Column::StatusCode)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-http-observations-duration-ms")
+                .table(http_observations::Entity)
+                .col(http_observations::Column::DurationMs)
+                .if_not_exists()
+                .to_owned(),
+        ];
+
+        for statement in indexes {
+            self.db
+                .execute(backend.build(&statement))
+                .await
+                .context("failed to create index")?;
+        }
+
         Ok(())
     }
 

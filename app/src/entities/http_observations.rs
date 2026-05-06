@@ -5,13 +5,19 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    #[sea_orm(indexed)]
     pub created_at: DateTimeUtc,
+    #[sea_orm(indexed, nullable)]
     pub request_id: Option<String>,
     pub method: String,
     pub path: String,
+    #[sea_orm(indexed)]
     pub host: String,
+    #[sea_orm(indexed)]
     pub client_ip: String,
+    #[sea_orm(indexed)]
     pub status_code: i32,
+    #[sea_orm(indexed)]
     pub duration_ms: i64,
     pub upstream_duration_ms: Option<i64>,
     pub upstream_latency_ms: Option<i64>,

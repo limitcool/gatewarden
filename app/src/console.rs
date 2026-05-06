@@ -62,6 +62,7 @@ pub struct PolicyRuleState {
     pub approved_by: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct HttpObservationState {
     pub request_id: Option<String>,
@@ -209,7 +210,7 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
         Ok(ConsoleResponse {
             data: EventsOverviewDto {
                 metrics: vec![
-                    metric("Stored events", &events.len().to_string(), "Recent ingress decisions persisted in SQLite"),
+                    metric("Stored events", &events.len().to_string(), "Recent ingress decisions persisted in the configured datastore"),
                     metric("404 responses", &not_found.to_string(), "Recent requests that reached an application or Caddy route miss"),
                     metric("Avg latency", &format!("{avg_latency}ms"), "Average request duration derived from structured Caddy logs"),
                     metric("5xx responses", &server_errors.to_string(), "Recent upstream failures and internal server errors"),
@@ -224,7 +225,7 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                 ],
                 stream: map_recent_events_with_observations(&events, &observations),
                 details: vec![
-                    detail("Persistence", "SeaORM + SQLite", "Event stream now prefers real stored security events instead of static-only placeholders."),
+                    detail("Persistence", "SeaORM + SQL", "Event stream now prefers real stored security events instead of static-only placeholders."),
                     detail("Decision posture", "Advisory first", "The product still defaults to reviewable signals before stronger enforcement."),
                     detail("HTTP observability", "Caddy JSON log", "Status codes and latency are ingested from structured access logs and correlated by request id when available."),
                     detail(
@@ -389,7 +390,7 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                     .collect(),
                 details: vec![
                     detail("Review goal", "Minimize blast radius", "Rules should be narrow enough that approval is a real decision, not a guess."),
-                    detail("OSS posture", "Live approval", "The approval lane now persists decisions in SQLite instead of remaining display-only."),
+                    detail("OSS posture", "Live approval", "The approval lane now persists decisions in the configured datastore instead of remaining display-only."),
                 ],
             },
         })
@@ -411,7 +412,7 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                 filters: vec![
                     filter("Gateway: caddy", "gateway:caddy"),
                     filter("Auth preset: live headers", "auth:live_headers"),
-                    filter("Data source: sqlite", "data:sqlite"),
+                    filter("Data source: sql", "data:sql"),
                 ],
                 settings: settings.as_settings_dto(),
                 details: vec![

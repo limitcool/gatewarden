@@ -26,7 +26,7 @@ Gatewarden 是一个面向自托管应用的开源 AI WAF。
 - 作为 AI 辅助 WAF 保护自托管与内网应用
 - 原生适配 `Caddy forward_auth`
 - 复用 TinyAuth、oauth2-proxy 或其他 OIDC 前置认证层传来的身份上下文
-- 使用 SQLite 持久化事件、规则、审批和设置
+- 使用 SQLite 或 PostgreSQL 持久化事件、规则、审批和设置
 - 提供事件、规则、审批、设置、状态码与响应时间的控制台界面
 - 保持 AI 只在建议层工作，而不是直接自动阻断请求
 
@@ -73,6 +73,7 @@ Gatewarden 目前仍处于早期阶段，但已经可以作为本地或单节点
 - AI 辅助规则建议与人工审核流
 - 概览、事件、规则、建议、审批、设置等控制台页面
 - 基于 Caddy access log 的状态码与响应时间观测
+- SQLite 轻量部署与 PostgreSQL 正式持久化支持
 
 当前仍未完成的部分：
 
@@ -117,6 +118,20 @@ pnpm --dir web run dev
 http://127.0.0.1:3010
 ```
 
+SQLite 仍然是默认的快速启动数据库：
+
+```yaml
+database:
+  url: "sqlite://app/data/ingress.db?mode=rwc"
+```
+
+如果你要接正式数据库或外部持久化，改成 PostgreSQL：
+
+```yaml
+database:
+  url: "postgres://gatewarden:change-me@127.0.0.1:5432/gatewarden"
+```
+
 ### 3. 验证项目
 
 ```powershell
@@ -129,6 +144,8 @@ pnpm --dir web run build
 ## Caddy 接入示例
 
 Gatewarden 适合部署在真实认证层之后，作为一层 AI 辅助、但执行仍然确定性的 WAF。
+
+基础 `Caddyfile` 示例：
 
 ```caddy
 app.example.com {
@@ -147,14 +164,102 @@ app.example.com {
 }
 ```
 
+带独立认证域名和两个受保护业务域名的示例：
+
+```caddy
+auth.example.com {
+	reverse_proxy http://127.0.0.1:9000
+}
+
+app.example.com {
+	forward_auth http://127.0.0.1:4000 {
+		uri /api/forward-auth
+		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
+	}
+
+	reverse_proxy http://127.0.0.1:8080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Uri {uri}
+	}
+}
+
+accounts.example.com {
+	forward_auth http://127.0.0.1:4000 {
+		uri /api/forward-auth
+		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
+	}
+
+	reverse_proxy http://127.0.0.1:8081 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Uri {uri}
+	}
+}
+```
+
 如果希望在控制台里看到状态码与响应时间，请开启结构化的 Caddy access log，并在 `gatewarden.yaml` 中把日志路径指给 Gatewarden。
 
 ## 配置项
 
-项目使用：
+项目使用 YAML 运行时配置：
 
 ```text
 gatewarden.yaml
+```
+
+完整示例：
+
+```yaml
+server:
+  listen_addr: "127.0.0.1:4000"
+
+database:
+  url: "sqlite://app/data/ingress.db?mode=rwc"
+  # Production example:
+  # url: "postgres://gatewarden:change-me@127.0.0.1:5432/gatewarden"
+
+identity:
+  mode: "trusted_header"
+  provider_hint: "external-oidc"
+  trusted_headers:
+    authenticated: "X-Authenticated"
+    subject: "Remote-User"
+    email: "Remote-Email"
+    groups: "Remote-Groups"
+    provider: "X-Auth-Provider"
+
+security:
+  admin_shadow_prefixes:
+    - "/admin"
+  login_ip_limit:
+    rule_id: "protect-login-ip"
+    path_prefix: "/api/login"
+    rps: 5
+    burst: 10
+  login_user_limit:
+    rule_id: "protect-login-user"
+    path_prefix: "/api/login"
+    rps: 3
+    burst: 6
+  console_admin_groups:
+    - "admin"
+  protected_hosts:
+    - "app.example.com"
+    - "accounts.example.com"
+
+observability:
+  caddy_access_log:
+    enabled: true
+    path: "app/data/caddy-access.jsonl"
+    poll_interval_ms: 1000
+  geoip:
+    enabled: false
+    database_path: "app/data/GeoLite2-City.mmdb"
 ```
 
 关键字段：
@@ -167,6 +272,7 @@ gatewarden.yaml
 - `security.login_user_limit.*`
 - `security.console_admin_groups`
 - `observability.caddy_access_log.*`
+- `observability.geoip.*`
 
 ## AI WAF 模型
 

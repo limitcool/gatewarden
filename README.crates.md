@@ -20,7 +20,7 @@ Core capabilities:
 - Deterministic protection for admin and login surfaces
 - Trusted-header identity model
 - Caddy-first integration with `forward_auth`
-- SQLite-backed events, rules, approvals, and settings
+- SQLite- or PostgreSQL-backed events, rules, approvals, and settings
 - Web console for events, rules, approvals, settings, status codes, and latency
 - Structured observability from Caddy access logs
 

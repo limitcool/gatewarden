@@ -3,6 +3,8 @@ server:
 
 database:
   url: "sqlite://app/data/ingress.db?mode=rwc"
+  # Production example:
+  # url: "postgres://gatewarden:change-me@127.0.0.1:5432/gatewarden"
 
 identity:
   mode: "trusted_header"

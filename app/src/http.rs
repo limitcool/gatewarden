@@ -359,6 +359,19 @@ mod tests {
     use tower::ServiceExt;
 
     fn test_database_url(name: &str) -> String {
+        if let Ok(base_url) = std::env::var("POSTGRES_TEST_DATABASE_URL") {
+            let suffix = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock before unix epoch")
+                .as_nanos();
+            let schema = format!("gwaf_test_{}_{}", sanitize_identifier(name), suffix);
+            return if base_url.contains('?') {
+                format!("{base_url}&options[search_path]={schema}")
+            } else {
+                format!("{base_url}?options[search_path]={schema}")
+            };
+        }
+
         let mut path: PathBuf = std::env::temp_dir();
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -366,6 +379,13 @@ mod tests {
             .as_nanos();
         path.push(format!("gatewarden-{name}-{suffix}.db"));
         format!("sqlite://{}?mode=rwc", path.to_string_lossy().replace('\\', "/"))
+    }
+
+    fn sanitize_identifier(input: &str) -> String {
+        input
+            .chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '_' })
+            .collect()
     }
 
     fn test_config(database_url: String) -> Arc<AppConfig> {
