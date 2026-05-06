@@ -145,14 +145,22 @@ pnpm --dir web run build
 
 Gatewarden is designed to work behind a real auth layer as an AI-assisted WAF with deterministic enforcement.
 
-Example `Caddyfile`:
+Reusable `Caddyfile` snippet:
 
 ```caddy
-app.example.com {
+(gatewarden_forward_auth) {
 	forward_auth http://127.0.0.1:4000 {
 		uri /api/forward-auth
 		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
 	}
+}
+```
+
+Minimal usage example:
+
+```caddy
+app.example.com {
+	import gatewarden_forward_auth
 
 	reverse_proxy http://127.0.0.1:8080 {
 		header_up X-Real-IP {remote_host}
@@ -167,15 +175,19 @@ app.example.com {
 Example with a dedicated auth host and two protected apps:
 
 ```caddy
+(gatewarden_forward_auth) {
+	forward_auth http://127.0.0.1:4000 {
+		uri /api/forward-auth
+		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
+	}
+}
+
 auth.example.com {
 	reverse_proxy http://127.0.0.1:9000
 }
 
 app.example.com {
-	forward_auth http://127.0.0.1:4000 {
-		uri /api/forward-auth
-		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
-	}
+	import gatewarden_forward_auth
 
 	reverse_proxy http://127.0.0.1:8080 {
 		header_up X-Real-IP {remote_host}
@@ -187,10 +199,7 @@ app.example.com {
 }
 
 accounts.example.com {
-	forward_auth http://127.0.0.1:4000 {
-		uri /api/forward-auth
-		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
-	}
+	import gatewarden_forward_auth
 
 	reverse_proxy http://127.0.0.1:8081 {
 		header_up X-Real-IP {remote_host}

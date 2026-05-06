@@ -145,14 +145,22 @@ pnpm --dir web run build
 
 Gatewarden 适合部署在真实认证层之后，作为一层 AI 辅助、但执行仍然确定性的 WAF。
 
-基础 `Caddyfile` 示例：
+可复用的 `Caddyfile` 片段：
 
 ```caddy
-app.example.com {
+(gatewarden_forward_auth) {
 	forward_auth http://127.0.0.1:4000 {
 		uri /api/forward-auth
 		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
 	}
+}
+```
+
+最小使用示例：
+
+```caddy
+app.example.com {
+	import gatewarden_forward_auth
 
 	reverse_proxy http://127.0.0.1:8080 {
 		header_up X-Real-IP {remote_host}
@@ -167,15 +175,19 @@ app.example.com {
 带独立认证域名和两个受保护业务域名的示例：
 
 ```caddy
+(gatewarden_forward_auth) {
+	forward_auth http://127.0.0.1:4000 {
+		uri /api/forward-auth
+		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
+	}
+}
+
 auth.example.com {
 	reverse_proxy http://127.0.0.1:9000
 }
 
 app.example.com {
-	forward_auth http://127.0.0.1:4000 {
-		uri /api/forward-auth
-		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
-	}
+	import gatewarden_forward_auth
 
 	reverse_proxy http://127.0.0.1:8080 {
 		header_up X-Real-IP {remote_host}
@@ -187,10 +199,7 @@ app.example.com {
 }
 
 accounts.example.com {
-	forward_auth http://127.0.0.1:4000 {
-		uri /api/forward-auth
-		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
-	}
+	import gatewarden_forward_auth
 
 	reverse_proxy http://127.0.0.1:8081 {
 		header_up X-Real-IP {remote_host}
