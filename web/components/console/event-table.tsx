@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { explainEvent } from "@/lib/console-api"
 import { 
   AlertCircle, 
   AlertTriangle, 
@@ -25,6 +26,8 @@ import {
   ExternalLink,
   Copy
 } from "lucide-react"
+import type { AiExplanationDto } from "@/lib/console-types"
+import { toast } from "sonner"
 
 type Severity = "critical" | "warning" | "info" | "success"
 
@@ -34,6 +37,7 @@ export interface EventRow {
   method: string
   path: string
   host?: string
+  hostStatus?: "protected" | "unprotected" | "unknown"
   subject?: string
   statusCode: number
   rule?: string
@@ -98,9 +102,31 @@ const methodColors: Record<string, string> = {
   DELETE: "text-status-error",
 }
 
+function hostStatusConfig(status?: EventRow["hostStatus"]) {
+  switch (status) {
+    case "protected":
+      return {
+        label: "已接入",
+        className: "border-status-active/30 bg-status-active/10 text-status-active",
+      }
+    case "unprotected":
+      return {
+        label: "未接入",
+        className: "border-status-error/30 bg-status-error/10 text-status-error",
+      }
+    default:
+      return {
+        label: "待确认",
+        className: "border-border bg-muted text-muted-foreground",
+      }
+  }
+}
+
 export function EventTable({ events, className, onRowClick, selectedEventId }: EventTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [logEvent, setLogEvent] = useState<EventRow | null>(null)
+  const [aiExplanation, setAiExplanation] = useState<AiExplanationDto | null>(null)
+  const [isExplaining, setIsExplaining] = useState(false)
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
@@ -116,6 +142,27 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
+  }
+
+  const handleExplainEvent = async (event: EventRow) => {
+    setIsExplaining(true)
+    try {
+      const response = await explainEvent({
+        requestId: event.requestId,
+        host: event.host,
+        path: event.path,
+        method: event.method,
+        statusCode: event.statusCode,
+        responseTimeMs: event.responseTime,
+        clientIp: event.ip,
+        userAgent: event.userAgent,
+      })
+      setAiExplanation(response.data)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "AI 解释失败")
+    } finally {
+      setIsExplaining(false)
+    }
   }
 
   return (
@@ -169,8 +216,18 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                   </span>
                   <div className="min-w-0">
                     {event.host && (
-                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">
-                        {event.host}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground truncate">
+                          {event.host}
+                        </div>
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium",
+                            hostStatusConfig(event.hostStatus).className
+                          )}
+                        >
+                          {hostStatusConfig(event.hostStatus).label}
+                        </span>
                       </div>
                     )}
                     <div className="text-sm break-all">{event.path}</div>
@@ -343,7 +400,17 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                         {event.host && (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">访问域名</span>
-                            <code className="text-[10px] font-mono">{event.host}</code>
+                            <div className="flex items-center gap-2">
+                              <code className="text-[10px] font-mono">{event.host}</code>
+                              <span
+                                className={cn(
+                                  "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium",
+                                  hostStatusConfig(event.hostStatus).className
+                                )}
+                              >
+                                {hostStatusConfig(event.hostStatus).label}
+                              </span>
+                            </div>
                           </div>
                         )}
                         <div>
@@ -392,6 +459,18 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                       <Shield className="h-3 w-3 mr-1" />
                       封禁此 IP
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void handleExplainEvent(event)
+                      }}
+                    >
+                      <Info className="h-3 w-3 mr-1" />
+                      {isExplaining ? "分析中..." : "AI 解释"}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -419,7 +498,19 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">访问域名</div>
-                  <div className="mt-1 break-all font-mono text-sm">{logEvent.host ?? "未采集"}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <div className="break-all font-mono text-sm">{logEvent.host ?? "未采集"}</div>
+                    {logEvent.host && (
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                          hostStatusConfig(logEvent.hostStatus).className
+                        )}
+                      >
+                        {hostStatusConfig(logEvent.hostStatus).label}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="text-xs text-muted-foreground">请求 ID</div>
@@ -452,6 +543,51 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                       ? [logEvent.country, logEvent.region, logEvent.city].filter(Boolean).join(" / ")
                       : "当前事件还没有匹配到公网 GeoIP 或观测日志。"}
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={aiExplanation !== null} onOpenChange={(open) => !open && setAiExplanation(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{aiExplanation?.title ?? "AI 解释"}</DialogTitle>
+            <DialogDescription>
+              {aiExplanation?.model ? `模型来源: ${aiExplanation.model}` : "模型解释"}
+            </DialogDescription>
+          </DialogHeader>
+          {aiExplanation && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                <div className="text-xs text-muted-foreground">摘要</div>
+                <p className="mt-1 text-sm leading-relaxed text-foreground">{aiExplanation.summary}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="text-xs text-muted-foreground">风险等级</div>
+                  <div className="mt-1 text-sm text-foreground">{aiExplanation.risk}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="text-xs text-muted-foreground">置信度</div>
+                  <div className="mt-1 text-sm text-foreground">{aiExplanation.confidence}</div>
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                <div className="text-xs text-muted-foreground">证据</div>
+                <div className="mt-2 space-y-2">
+                  {aiExplanation.evidence.map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm text-foreground">{item}</p>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                <div className="text-xs text-muted-foreground">建议动作</div>
+                <div className="mt-2 space-y-2">
+                  {aiExplanation.nextSteps.map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm text-foreground">{item}</p>
+                  ))}
                 </div>
               </div>
             </div>

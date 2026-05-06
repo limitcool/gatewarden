@@ -35,6 +35,16 @@ security:
     - "init.cool"
     - "accounts.init.cool"
 
+ai:
+  enabled: false
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "GATEWARDEN_AI_API_KEY"
+  # Optional for OpenAI-compatible gateways such as OpenRouter or self-hosted proxies:
+  # base_url: "https://api.openai.com/v1"
+  timeout_ms: 15000
+  system_prompt: "You are Gatewarden, an AI security analyst. Produce concise, evidence-based, operator-reviewable guidance."
+
 observability:
   caddy_access_log:
     enabled: false

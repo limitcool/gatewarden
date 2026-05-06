@@ -12,8 +12,9 @@ import {
 import { Lightbulb, CheckCircle, TrendingUp } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-import { getSuggestionsOverview, normalizeDetails, normalizeFilters, normalizeMetrics, normalizeSuggestions } from "@/lib/console-api"
+import { getSuggestionsOverview, normalizeDetails, normalizeFilters, normalizeMetrics, normalizeSuggestions, refreshSuggestionsOverview } from "@/lib/console-api"
 import type { SuggestionsOverviewDto } from "@/lib/console-types"
+import { Button } from "@/components/ui/button"
 
 const iconMap = [Lightbulb, CheckCircle, TrendingUp]
 
@@ -21,6 +22,7 @@ export default function SuggestionsPage() {
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchValue, setSearchValue] = useState("")
   const [data, setData] = useState<SuggestionsOverviewDto | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -70,11 +72,36 @@ export default function SuggestionsPage() {
     toast.message(`已记录：${suggestion.secondaryAction}`)
   }
 
+  const handleRefreshSuggestions = async () => {
+    setIsRefreshing(true)
+    try {
+      const response = await refreshSuggestionsOverview()
+      setData(response.data)
+      toast.success("AI 建议已刷新")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "刷新 AI 建议失败")
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="智能建议"
         description="基于 AI 分析的策略优化建议"
+        action={(
+          <div className="flex items-center gap-2">
+            {data?.aiEnabled && data?.aiProvider && data?.aiModel ? (
+              <div className="hidden rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground sm:block">
+                {data.aiProvider} · {data.aiModel}
+              </div>
+            ) : null}
+            <Button size="sm" onClick={() => void handleRefreshSuggestions()} disabled={isRefreshing}>
+              {isRefreshing ? "分析中..." : "刷新 AI 建议"}
+            </Button>
+          </div>
+        )}
       />
 
       <MetricsGrid columns={3}>

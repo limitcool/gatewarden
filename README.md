@@ -2,6 +2,12 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+[![GitHub release](https://img.shields.io/github/v/release/limitcool/gatewarden)](https://github.com/limitcool/gatewarden/releases)
+[![Docker pulls](https://img.shields.io/badge/ghcr-gatewarden-black)](https://github.com/limitcool/gatewarden/pkgs/container/gatewarden)
+[![Crates.io](https://img.shields.io/crates/v/gwaf)](https://crates.io/crates/gwaf)
+[![License](https://img.shields.io/github/license/limitcool/gatewarden)](LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/limitcool/gatewarden)
+
 <p align="center">
   <img src="docs/assets/gatewarden-mark.svg" alt="Gatewarden logo" width="92" height="92" />
 </p>
@@ -261,6 +267,16 @@ security:
     - "app.example.com"
     - "accounts.example.com"
 
+ai:
+  enabled: false
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "GATEWARDEN_AI_API_KEY"
+  # Optional for OpenAI-compatible gateways:
+  # base_url: "https://api.openai.com/v1"
+  timeout_ms: 15000
+  system_prompt: "You are Gatewarden, an AI security analyst. Produce concise, evidence-based, operator-reviewable guidance."
+
 observability:
   caddy_access_log:
     enabled: true
@@ -280,8 +296,73 @@ Important sections:
 - `security.login_ip_limit.*`
 - `security.login_user_limit.*`
 - `security.console_admin_groups`
+- `ai.enabled`
+- `ai.provider`
+- `ai.model`
+- `ai.api_key_env`
+- `ai.base_url`
+- `ai.timeout_ms`
 - `observability.caddy_access_log.*`
 - `observability.geoip.*`
+
+## AI Configuration
+
+Gatewarden now supports real model-backed advisory workflows for:
+
+- asynchronous AI rule suggestions
+- per-request AI explanation in the events view
+
+Supported provider values:
+
+- `openai`
+- `anthropic`
+- `gemini`
+- `groq`
+- `deepseek`
+- `xai`
+- `ollama`
+
+The default path is:
+
+- `provider: "openai"`
+- `model: "gpt-4.1-mini"`
+- `api_key_env: "GATEWARDEN_AI_API_KEY"`
+
+To use the official OpenAI API:
+
+```yaml
+ai:
+  enabled: true
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "GATEWARDEN_AI_API_KEY"
+  base_url: "https://api.openai.com/v1"
+  timeout_ms: 15000
+```
+
+To use an OpenAI-compatible gateway such as OpenRouter, a relay, or your own proxy:
+
+```yaml
+ai:
+  enabled: true
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "GATEWARDEN_AI_API_KEY"
+  base_url: "https://your-openai-compatible-endpoint/v1"
+  timeout_ms: 15000
+```
+
+Environment example:
+
+```powershell
+$env:GATEWARDEN_AI_API_KEY="your-api-key"
+```
+
+Important boundary:
+
+- AI stays in the advisory lane
+- published enforcement still requires human approval
+- realtime blocking and rate limiting remain deterministic
 
 ## AI WAF Model
 

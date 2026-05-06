@@ -2,6 +2,12 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+[![GitHub release](https://img.shields.io/github/v/release/limitcool/gatewarden)](https://github.com/limitcool/gatewarden/releases)
+[![Docker pulls](https://img.shields.io/badge/ghcr-gatewarden-black)](https://github.com/limitcool/gatewarden/pkgs/container/gatewarden)
+[![Crates.io](https://img.shields.io/crates/v/gwaf)](https://crates.io/crates/gwaf)
+[![License](https://img.shields.io/github/license/limitcool/gatewarden)](LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/limitcool/gatewarden)
+
 <p align="center">
   <img src="docs/assets/gatewarden-mark.svg" alt="Gatewarden logo" width="92" height="92" />
 </p>
@@ -261,6 +267,16 @@ security:
     - "app.example.com"
     - "accounts.example.com"
 
+ai:
+  enabled: false
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "GATEWARDEN_AI_API_KEY"
+  # 如果你要接 OpenAI-compatible 网关，可以配置 base_url:
+  # base_url: "https://api.openai.com/v1"
+  timeout_ms: 15000
+  system_prompt: "You are Gatewarden, an AI security analyst. Produce concise, evidence-based, operator-reviewable guidance."
+
 observability:
   caddy_access_log:
     enabled: true
@@ -280,8 +296,73 @@ observability:
 - `security.login_ip_limit.*`
 - `security.login_user_limit.*`
 - `security.console_admin_groups`
+- `ai.enabled`
+- `ai.provider`
+- `ai.model`
+- `ai.api_key_env`
+- `ai.base_url`
+- `ai.timeout_ms`
 - `observability.caddy_access_log.*`
 - `observability.geoip.*`
+
+## AI 配置
+
+Gatewarden 现在已经支持真实模型参与建议层工作，主要用于：
+
+- 异步生成 AI 规则建议
+- 在事件页里对单次请求做 AI 解释
+
+当前支持的 provider 值：
+
+- `openai`
+- `anthropic`
+- `gemini`
+- `groq`
+- `deepseek`
+- `xai`
+- `ollama`
+
+默认建议配置：
+
+- `provider: "openai"`
+- `model: "gpt-4.1-mini"`
+- `api_key_env: "GATEWARDEN_AI_API_KEY"`
+
+如果你要直连官方 OpenAI：
+
+```yaml
+ai:
+  enabled: true
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "GATEWARDEN_AI_API_KEY"
+  base_url: "https://api.openai.com/v1"
+  timeout_ms: 15000
+```
+
+如果你要接 OpenAI-compatible 网关，比如 OpenRouter、中转层或自建代理：
+
+```yaml
+ai:
+  enabled: true
+  provider: "openai"
+  model: "gpt-4.1-mini"
+  api_key_env: "GATEWARDEN_AI_API_KEY"
+  base_url: "https://your-openai-compatible-endpoint/v1"
+  timeout_ms: 15000
+```
+
+环境变量示例：
+
+```powershell
+$env:GATEWARDEN_AI_API_KEY="your-api-key"
+```
+
+需要明确的一点：
+
+- AI 仍然只在建议层工作
+- 发布真实策略仍然需要人工审批
+- 实时阻断与限流仍然保持确定性执行
 
 ## AI WAF 模型
 

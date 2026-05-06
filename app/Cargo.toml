@@ -22,13 +22,16 @@ anyhow.workspace = true
 async-trait = "0.1"
 axum.workspace = true
 chrono.workspace = true
+genai = "0.2.0-rc.2"
 http.workspace = true
-ingress-api = { path = "../crates/ingress-api", version = "0.1.3" }
-ingress-caddy = { path = "../crates/ingress-caddy", version = "0.1.3" }
-ingress-core = { path = "../crates/ingress-core", version = "0.1.3" }
-ingress-gateway = { path = "../crates/ingress-gateway", version = "0.1.3" }
-ingress-policy = { path = "../crates/ingress-policy", version = "0.1.3" }
-ingress-rate-limit = { path = "../crates/ingress-rate-limit", version = "0.1.3" }
+ingress-api = { path = "../crates/ingress-api", version = "0.1.4" }
+ingress-ai = { path = "../crates/ingress-ai", version = "0.1.4" }
+ingress-caddy = { path = "../crates/ingress-caddy", version = "0.1.4" }
+ingress-core = { path = "../crates/ingress-core", version = "0.1.4" }
+ingress-gateway = { path = "../crates/ingress-gateway", version = "0.1.4" }
+ingress-policy = { path = "../crates/ingress-policy", version = "0.1.4" }
+ingress-rate-limit = { path = "../crates/ingress-rate-limit", version = "0.1.4" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sea-orm = { version = "1.1", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros"] }
 serde.workspace = true
 serde_json.workspace = true

@@ -1,4 +1,5 @@
 use crate::{
+    ai::AiService,
     console::{ConsoleDataProvider, ConsoleSettingsState, SeaOrmConsoleDataProvider},
     config::AppConfig,
     security::{SecurityService, resolve_client_ip},
@@ -13,6 +14,7 @@ use axum::{
     routing::{get, post},
 };
 use ingress_api::routes;
+use ingress_api::ExplainEventRequest;
 use serde::Deserialize;
 use std::sync::RwLock;
 use serde::Serialize;
@@ -22,6 +24,7 @@ use std::sync::Arc;
 pub struct AppState {
     console: Arc<SeaOrmConsoleDataProvider>,
     security: Arc<SecurityService>,
+    ai: Arc<AiService>,
     store: Arc<Store>,
     config: Arc<AppConfig>,
     runtime_settings: Arc<RwLock<ConsoleSettingsState>>,
@@ -32,6 +35,7 @@ impl AppState {
         store: Arc<Store>,
         config: Arc<AppConfig>,
         runtime_settings: Arc<RwLock<ConsoleSettingsState>>,
+        ai: Arc<AiService>,
     ) -> Self {
         Self {
             console: Arc::new(SeaOrmConsoleDataProvider::new(
@@ -44,6 +48,7 @@ impl AppState {
                 config.clone(),
                 runtime_settings.clone(),
             )),
+            ai,
             store,
             config,
             runtime_settings,
@@ -110,7 +115,8 @@ pub fn router(state: AppState) -> Router {
         .route(routes::DASHBOARD, get(dashboard))
         .route(routes::EVENTS, get(events))
         .route(routes::RULES, get(rules_index))
-        .route(routes::SUGGESTIONS, get(suggestions))
+        .route(routes::SUGGESTIONS, get(suggestions).post(refresh_suggestions))
+        .route(routes::AI_EXPLAIN, post(explain_event))
         .route(routes::APPROVALS, get(approvals))
         .route("/api/console/approvals/{rule_name}/approve", post(approve_rule))
         .route("/api/console/approvals/{rule_name}/revision", post(request_rule_revision))
@@ -173,6 +179,42 @@ async fn suggestions(State(state): State<AppState>, headers: HeaderMap) -> impl 
         Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("suggestions load failed: {error}"),
+        )
+            .into_response(),
+    }
+}
+
+async fn refresh_suggestions(State(state): State<AppState>, headers: HeaderMap) -> impl IntoResponse {
+    if let Err(error) = state.authorize_console(&headers) {
+        return error.into_response();
+    }
+    match state.console.refresh_ai_suggestions(state.ai.clone()).await {
+        Ok(data) => axum::Json(data).into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("suggestions refresh failed: {error}"),
+        )
+            .into_response(),
+    }
+}
+
+async fn explain_event(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ExplainEventRequest>,
+) -> impl IntoResponse {
+    if let Err(error) = state.authorize_console(&headers) {
+        return error.into_response();
+    }
+    match state
+        .console
+        .explain_event(state.ai.clone(), payload)
+        .await
+    {
+        Ok(data) => Json(data).into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("event explanation failed: {error}"),
         )
             .into_response(),
     }
@@ -345,7 +387,7 @@ async fn forward_auth(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{config, store::PolicyRuleSeed};
+    use crate::{ai::AiService, config, store::PolicyRuleSeed};
     use axum::{
         body::{Body, to_bytes},
         http::Request,
@@ -405,6 +447,7 @@ mod tests {
                     provider: "X-Auth-Provider".to_string(),
                 },
             },
+                ai: config::AiConfig::default(),
                 security: config::SecurityConfig {
                     admin_shadow_prefixes: vec!["/admin".to_string()],
                     login_ip_limit: config::RateLimitConfig {
@@ -473,7 +516,8 @@ mod tests {
             .await
             .expect("rules should seed");
 
-        router(AppState::new(store, config, runtime_settings))
+        let ai = Arc::new(AiService::new(Arc::new(config.ai.clone())).expect("ai service should build"));
+        router(AppState::new(store, config, runtime_settings, ai))
     }
 
     #[tokio::test]

@@ -24,6 +24,7 @@ export interface EventItemDto {
   subtitle: string
   severity: string
   host?: string | null
+  hostStatus?: string | null
   subject?: string | null
   userAgent?: string | null
   country?: string | null
@@ -58,11 +59,29 @@ export interface RuleRowDto {
 }
 
 export interface SuggestionItemDto {
+  id: string
   title: string
   summary: string
   badge: string
+  confidence?: string | null
+  evidence: string[]
+  proposedRule?: string | null
+  model?: string | null
+  generatedAt?: string | null
   primaryAction: string
   secondaryAction: string
+}
+
+export interface AiExplanationDto {
+  requestId?: string | null
+  title: string
+  summary: string
+  risk: string
+  confidence: string
+  evidence: string[]
+  nextSteps: string[]
+  model?: string | null
+  generatedAt?: string | null
 }
 
 export interface ApprovalItemDto {
@@ -100,6 +119,7 @@ export interface EventsOverviewDto {
   stream: EventItemDto[]
   details: DetailItemDto[]
   protectedHosts?: string[]
+  observedHosts?: string[]
 }
 
 export interface RulesOverviewDto {
@@ -114,6 +134,9 @@ export interface SuggestionsOverviewDto {
   filters: FilterChipDto[]
   suggestions: SuggestionItemDto[]
   details: DetailItemDto[]
+  aiEnabled: boolean
+  aiProvider?: string | null
+  aiModel?: string | null
 }
 
 export interface ApprovalsOverviewDto {

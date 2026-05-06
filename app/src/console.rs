@@ -1,15 +1,16 @@
-use crate::{config::AppConfig, entities::security_events, store::Store};
+use crate::{ai::AiService, config::AppConfig, entities::security_events, store::Store};
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use ingress_api::{
     ActionItemDto, ApprovalItemDto, ApprovalsOverviewDto, ConsoleResponse, DashboardMetricDto,
-    DashboardOverviewDto, DetailItemDto, EventItemDto, EventsOverviewDto, FilterChipDto, MetricDto,
-    RuleRowDto, RulesOverviewDto, SettingsOverviewDto, SettingsStateDto, SuggestionItemDto,
-    SuggestionsOverviewDto,
+    DashboardOverviewDto, DetailItemDto, EventItemDto, EventsOverviewDto, ExplainEventRequest,
+    FilterChipDto, MetricDto, RuleRowDto, RulesOverviewDto, SettingsOverviewDto,
+    SettingsStateDto, SuggestionItemDto, SuggestionsOverviewDto, AiExplanationDto,
 };
+use ingress_ai::{AiEventContext, ExplainEventInput, SuggestionGenerationInput};
 use std::{
-    collections::HashSet,
+    collections::{BTreeSet, HashSet},
     sync::{Arc, RwLock},
 };
 
@@ -122,6 +123,110 @@ impl SeaOrmConsoleDataProvider {
             runtime_settings,
         }
     }
+
+    pub async fn refresh_ai_suggestions(
+        &self,
+        ai: Arc<AiService>,
+    ) -> Result<ConsoleResponse<SuggestionsOverviewDto>> {
+        if !ai.is_enabled() {
+            return self.suggestions().await;
+        }
+
+        let events = self.store.recent_events(24).await?;
+        let observations = self.store.recent_http_observations(24).await?;
+        let rules = self.store.list_policy_rules().await?;
+        let payload = SuggestionGenerationInput {
+            protected_hosts: self.config.security.protected_hosts.clone(),
+            active_rules: rules
+                .iter()
+                .filter(|rule| rule.status.eq_ignore_ascii_case("active"))
+                .map(|rule| format!("{}: {}", rule.name, rule.summary))
+                .collect(),
+            review_rules: rules
+                .iter()
+                .filter(|rule| rule.status.eq_ignore_ascii_case("review"))
+                .map(|rule| format!("{}: {}", rule.name, rule.summary))
+                .collect(),
+            recent_events: build_ai_event_contexts(&events, &observations),
+        };
+
+        let suggestions = ai.generate_suggestions(&payload).await?;
+        self.store
+            .replace_ai_suggestions(&suggestions, ai.provider(), ai.model())
+            .await?;
+        self.suggestions().await
+    }
+
+    pub async fn explain_event(
+        &self,
+        ai: Arc<AiService>,
+        request: ExplainEventRequest,
+    ) -> Result<ConsoleResponse<AiExplanationDto>> {
+        if let Some(request_id) = request.request_id.as_deref() {
+            if let Some(cached) = self.store.get_ai_event_explanation(request_id).await? {
+                return Ok(ConsoleResponse {
+                    data: AiExplanationDto {
+                        request_id: cached.request_id,
+                        title: cached.title,
+                        summary: cached.summary,
+                        risk: cached.risk,
+                        confidence: cached.confidence,
+                        evidence: cached.evidence,
+                        next_steps: cached.next_steps,
+                        model: Some(format!("{}/{}", cached.provider, cached.model_name)),
+                        generated_at: Some(cached.created_at.to_rfc3339()),
+                    },
+                });
+            }
+        }
+
+        let rules = self.store.list_policy_rules().await?;
+        let input = ExplainEventInput {
+            event: AiEventContext {
+                request_id: request.request_id.clone(),
+                host: request.host.clone(),
+                path: request.path,
+                method: request.method,
+                client_ip: request.client_ip,
+                subject: None,
+                status_code: request.status_code,
+                response_time_ms: request.response_time_ms,
+                user_agent: request.user_agent,
+                reason: None,
+                country: None,
+                asn_org: None,
+            },
+            protected_hosts: self.config.security.protected_hosts.clone(),
+            active_rules: rules
+                .iter()
+                .filter(|rule| rule.status.eq_ignore_ascii_case("active"))
+                .map(|rule| format!("{}: {}", rule.name, rule.summary))
+                .collect(),
+        };
+        let explanation = ai.explain_event(&input).await?;
+        self.store
+            .upsert_ai_event_explanation(
+                request.request_id.as_deref(),
+                &explanation,
+                ai.provider(),
+                ai.model(),
+            )
+            .await?;
+
+        Ok(ConsoleResponse {
+            data: AiExplanationDto {
+                request_id: request.request_id,
+                title: explanation.title,
+                summary: explanation.summary,
+                risk: explanation.risk,
+                confidence: explanation.confidence,
+                evidence: explanation.evidence,
+                next_steps: explanation.next_steps,
+                model: Some(format!("{}/{}", ai.provider(), ai.model())),
+                generated_at: Some(Utc::now().to_rfc3339()),
+            },
+        })
+    }
 }
 
 #[async_trait]
@@ -201,6 +306,7 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
         let not_found = observations.iter().filter(|entry| entry.status_code == 404).count();
         let server_errors = observations.iter().filter(|entry| entry.status_code >= 500).count();
         let avg_latency = average_latency(&observations).unwrap_or(0);
+        let observed_hosts = observed_host_list(&events, &observations);
         let protected_hosts_label = if protected_hosts.is_empty() {
             "all hosts".to_string()
         } else {
@@ -223,7 +329,7 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                     filter("Source: live", "source:live"),
                     filter("Response: observed", "response:observed"),
                 ],
-                stream: map_recent_events_with_observations(&events, &observations),
+                stream: map_recent_events_with_observations(&events, &observations, &protected_host_set),
                 details: vec![
                     detail("Persistence", "SeaORM + SQL", "Event stream now prefers real stored security events instead of static-only placeholders."),
                     detail("Decision posture", "Advisory first", "The product still defaults to reviewable signals before stronger enforcement."),
@@ -235,6 +341,7 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                     ),
                 ],
                 protected_hosts,
+                observed_hosts,
             },
         })
     }
@@ -281,71 +388,65 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
     }
 
     async fn suggestions(&self) -> Result<ConsoleResponse<SuggestionsOverviewDto>> {
-        let events = self.store.recent_events(50).await?;
         let rules = self.store.list_policy_rules().await?;
-        let anonymous_bursts = events
-            .iter()
-            .filter(|entry| entry.reason == "rate_limit.exceeded" && entry.subject_id.is_none())
-            .count();
-        let admin_shadows = events
-            .iter()
-            .filter(|entry| entry.reason == "auth.required_for_admin")
-            .count();
         let pending_rules = rules
             .iter()
             .filter(|rule| rule.status.eq_ignore_ascii_case("review"))
             .count();
-
-        let mut suggestions = Vec::new();
-        if anonymous_bursts > 0 {
-            suggestions.push(SuggestionItemDto {
-                title: "Escalate anonymous login limiter".to_string(),
-                summary: format!(
-                    "{anonymous_bursts} recent anonymous rate-limit hits on /api/login suggest tightening thresholds before broader exposure."
-                ),
-                badge: "Evidence".to_string(),
-                primary_action: "Open approvals".to_string(),
-                secondary_action: "Later".to_string(),
-            });
-        }
-        if admin_shadows > 0 {
-            suggestions.push(SuggestionItemDto {
-                title: "Promote admin auth rule".to_string(),
-                summary: format!(
-                    "{admin_shadows} recent unauthenticated /admin decisions are still landing in shadow mode and can be promoted after review."
-                ),
-                badge: "Review".to_string(),
-                primary_action: "Open approvals".to_string(),
-                secondary_action: "Hold".to_string(),
-            });
-        }
-        if suggestions.is_empty() {
-            suggestions.push(SuggestionItemDto {
+        let persisted = self.store.list_ai_suggestions().await?;
+        let suggestions = if persisted.is_empty() {
+            vec![SuggestionItemDto {
+                id: "suggestion-placeholder".to_string(),
                 title: "No new advisory spikes".to_string(),
                 summary: "Recent traffic is quiet enough that the queue is currently fed by the persisted review inventory.".to_string(),
                 badge: "Calm".to_string(),
+                confidence: Some("待生成".to_string()),
+                evidence: vec!["当前还没有生成新的 AI 建议，可点击刷新建议进行分析。".to_string()],
+                proposed_rule: None,
+                model: None,
+                generated_at: None,
                 primary_action: "Open approvals".to_string(),
                 secondary_action: "Later".to_string(),
-            });
-        }
+            }]
+        } else {
+            persisted
+                .into_iter()
+                .map(|item| SuggestionItemDto {
+                    id: item.suggestion_id,
+                    title: item.title,
+                    summary: item.summary,
+                    badge: item.badge,
+                    confidence: Some(item.confidence),
+                    evidence: item.evidence,
+                    proposed_rule: item.proposed_rule,
+                    model: Some(format!("{}/{}", item.provider, item.model_name)),
+                    generated_at: Some(item.created_at.to_rfc3339()),
+                    primary_action: "Open approvals".to_string(),
+                    secondary_action: "Later".to_string(),
+                })
+                .collect()
+        };
 
         Ok(ConsoleResponse {
             data: SuggestionsOverviewDto {
                 metrics: vec![
                     metric("Pending suggestions", &suggestions.len().to_string(), "Candidate rules waiting for review"),
-                    metric("Shadow admin hits", &admin_shadows.to_string(), "Unauthenticated admin requests still surfacing as review signals"),
+                    metric("Shadow admin hits", &pending_rules.to_string(), "Unauthenticated admin requests still surfacing as review signals"),
                     metric("Review inventory", &pending_rules.to_string(), "Persisted review rules that still need operator action"),
                 ],
                 filters: vec![
-                    filter("Source: live events", "source:live_events"),
+                    filter("Source: ai advisory", "source:ai_advisory"),
                     filter("Approval: required", "approval:required"),
                     filter("Mode: advisory", "mode:advisory"),
                 ],
                 suggestions,
                 details: vec![
-                    detail("LLM role", "Explanation only", "Inference output stays on the recommendation side of the boundary."),
+                    detail("LLM role", "Advisory analysis", "Inference output stays on the recommendation side of the boundary."),
                     detail("Publishing gate", "Manual approval", "No suggestion becomes real enforcement without an explicit approval request."),
                 ],
+                ai_enabled: self.config.ai.enabled,
+                ai_provider: self.config.ai.enabled.then(|| self.config.ai.provider.clone()),
+                ai_model: self.config.ai.enabled.then(|| self.config.ai.model.clone()),
             },
         })
     }
@@ -474,6 +575,7 @@ fn map_recent_events(entries: &[security_events::Model]) -> Vec<EventItemDto> {
             None,
             None,
             None,
+            None,
         )];
     }
 
@@ -489,6 +591,7 @@ fn map_recent_events(entries: &[security_events::Model]) -> Vec<EventItemDto> {
                 &subtitle,
                 &entry.action,
                 Some(entry.host.clone()),
+                Some("protected".to_string()),
                 entry.subject_id.clone(),
                 entry.user_agent.clone(),
                 None,
@@ -514,12 +617,14 @@ fn map_recent_events(entries: &[security_events::Model]) -> Vec<EventItemDto> {
 fn map_recent_events_with_observations(
     entries: &[security_events::Model],
     observations: &[HttpObservationState],
+    protected_hosts: &HashSet<String>,
 ) -> Vec<EventItemDto> {
     if entries.is_empty() && observations.is_empty() {
         return vec![event_item(
             "No security events yet",
             "Run traffic through /api/forward-auth to populate the event stream.",
             "info",
+            None,
             None,
             None,
             None,
@@ -563,6 +668,7 @@ fn map_recent_events_with_observations(
                 .map(|item| severity_for_status(item.status_code))
                 .unwrap_or(&entry.action),
             Some(entry.host.clone()),
+            Some(host_status(&entry.host, protected_hosts).to_string()),
             entry.subject_id.clone(),
             observation
                 .and_then(|item| item.user_agent.clone())
@@ -613,6 +719,7 @@ fn map_recent_events_with_observations(
             &subtitle,
             severity_for_status(observation.status_code),
             Some(observation.host.clone()),
+            Some(host_status(&observation.host, protected_hosts).to_string()),
             None,
             observation.user_agent.clone(),
             observation.country.clone(),
@@ -665,6 +772,7 @@ fn event_item(
     subtitle: &str,
     severity: &str,
     host: Option<String>,
+    host_status: Option<String>,
     subject: Option<String>,
     user_agent: Option<String>,
     country: Option<String>,
@@ -688,6 +796,7 @@ fn event_item(
         subtitle: subtitle.to_string(),
         severity: severity.to_string(),
         host,
+        host_status,
         subject,
         user_agent,
         country,
@@ -779,6 +888,67 @@ fn matches_protected_host(host: &str, protected_hosts: &HashSet<String>) -> bool
     }
 
     protected_hosts.contains(&host.trim().to_ascii_lowercase())
+}
+
+fn host_status(host: &str, protected_hosts: &HashSet<String>) -> &'static str {
+    if protected_hosts.is_empty() {
+        return "protected";
+    }
+
+    if protected_hosts.contains(&host.trim().to_ascii_lowercase()) {
+        "protected"
+    } else {
+        "unprotected"
+    }
+}
+
+fn observed_host_list(
+    events: &[security_events::Model],
+    observations: &[HttpObservationState],
+) -> Vec<String> {
+    let mut hosts = BTreeSet::new();
+
+    for host in events.iter().map(|entry| entry.host.trim()).filter(|host| !host.is_empty()) {
+        hosts.insert(host.to_string());
+    }
+
+    for host in observations
+        .iter()
+        .map(|entry| entry.host.trim())
+        .filter(|host| !host.is_empty())
+    {
+        hosts.insert(host.to_string());
+    }
+
+    hosts.into_iter().collect()
+}
+
+fn build_ai_event_contexts(
+    events: &[security_events::Model],
+    observations: &[HttpObservationState],
+) -> Vec<AiEventContext> {
+    events
+        .iter()
+        .map(|entry| {
+            let observation = find_matching_observation(entry, observations);
+            AiEventContext {
+                request_id: Some(entry.request_id.clone()),
+                host: Some(entry.host.clone()),
+                path: entry.path.clone(),
+                method: entry.method.clone(),
+                client_ip: entry.client_ip.clone(),
+                subject: entry.subject_id.clone(),
+                status_code: observation.map(|item| item.status_code),
+                response_time_ms: observation.map(|item| item.duration_ms),
+                user_agent: observation
+                    .and_then(|item| item.user_agent.clone())
+                    .or_else(|| entry.user_agent.clone()),
+                reason: Some(entry.reason.clone()),
+                country: observation.and_then(|item| item.country.clone()),
+                asn_org: observation.and_then(|item| item.asn_org.clone()),
+            }
+        })
+        .collect()
 }
 
 fn action_item(title: &str, description: &str, cta: &str) -> ActionItemDto {

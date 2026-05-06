@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScopeBadge } from "./scope-badge"
+import { ShieldCheck, ArrowUpRight, RotateCcw } from "lucide-react"
 
 interface Approval {
   id?: string
@@ -31,41 +32,46 @@ export function ApprovalQueueCard({
 }: ApprovalQueueCardProps) {
   return (
     <div className={cn("rounded-lg border border-border bg-card", className)}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-status-active" />
+          <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        </div>
         <span className="text-xs text-muted-foreground">{approvals.length} 条待审批</span>
       </div>
       <div className="divide-y divide-border">
         {approvals.map((approval) => (
           <div
             key={approval.id ?? approval.name}
-            className="flex flex-col sm:flex-row sm:items-center gap-4 px-4 py-4"
+            className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto]"
           >
-            <div className="flex-1 min-w-0 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <code className="text-sm font-mono font-medium text-foreground">
                   {approval.displayName ?? approval.name}
                 </code>
-                <ScopeBadge>{approval.badge}</ScopeBadge>
+                <ScopeBadge className="rounded-full">{approval.badge}</ScopeBadge>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
+              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
                 {approval.summary}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 self-start lg:self-center">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => onRevision?.(approval)}
-                className="h-8 text-xs"
+                className="h-8 rounded-full px-3 text-xs"
               >
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                 {approval.secondaryAction}
               </Button>
               <Button
                 size="sm"
                 onClick={() => onApprove?.(approval)}
-                className="h-8 text-xs"
+                className="h-8 rounded-full px-3 text-xs"
               >
+                <ArrowUpRight className="mr-1.5 h-3.5 w-3.5" />
                 {approval.primaryAction}
               </Button>
             </div>

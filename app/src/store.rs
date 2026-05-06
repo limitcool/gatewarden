@@ -1,8 +1,12 @@
 use crate::console::{ConsoleSettingsState, HttpObservationState, PolicyRuleState};
-use crate::entities::{console_settings, http_observations, policy_rules, security_events};
+use crate::entities::{
+    ai_event_explanations, ai_suggestions, console_settings, http_observations, policy_rules,
+    security_events,
+};
 use crate::config::{DatabaseConfig, ensure_parent_directory};
 use anyhow::{Context, Result};
 use chrono::Utc;
+use ingress_ai::{AiExplanation, AiSuggestion};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend,
     EntityTrait, QueryFilter, QueryOrder, QuerySelect, Schema, Set, Statement,
@@ -64,6 +68,34 @@ pub struct HttpObservationInput {
 }
 
 #[derive(Debug, Clone)]
+pub struct StoredAiSuggestion {
+    pub suggestion_id: String,
+    pub title: String,
+    pub summary: String,
+    pub badge: String,
+    pub confidence: String,
+    pub evidence: Vec<String>,
+    pub proposed_rule: Option<String>,
+    pub model_name: String,
+    pub provider: String,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StoredAiExplanation {
+    pub request_id: Option<String>,
+    pub title: String,
+    pub summary: String,
+    pub risk: String,
+    pub confidence: String,
+    pub evidence: Vec<String>,
+    pub next_steps: Vec<String>,
+    pub model_name: String,
+    pub provider: String,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Store {
     db: DatabaseConnection,
 }
@@ -75,6 +107,7 @@ impl Store {
             .await
             .with_context(|| format!("failed to connect database: {}", database.url))?;
         let store = Self { db };
+        store.ensure_postgres_schema(database).await?;
         store.migrate().await?;
         Ok(store)
     }
@@ -191,6 +224,120 @@ impl Store {
                 source: row.source,
             })
             .collect())
+    }
+
+    pub async fn replace_ai_suggestions(
+        &self,
+        suggestions: &[AiSuggestion],
+        provider: &str,
+        model_name: &str,
+    ) -> Result<()> {
+        ai_suggestions::Entity::delete_many()
+            .exec(&self.db)
+            .await
+            .context("failed to clear ai suggestions")?;
+
+        let now = Utc::now();
+        for (index, item) in suggestions.iter().enumerate() {
+            let record = ai_suggestions::ActiveModel {
+                suggestion_id: Set(format!("ai-suggestion-{}", index + 1)),
+                title: Set(item.title.clone()),
+                summary: Set(item.summary.clone()),
+                badge: Set(item.badge.clone()),
+                confidence: Set(item.confidence.clone()),
+                evidence_json: Set(serde_json::to_string(&item.evidence)?),
+                proposed_rule: Set(item.proposed_rule.clone()),
+                model_name: Set(model_name.to_string()),
+                provider: Set(provider.to_string()),
+                status: Set("ready".to_string()),
+                created_at: Set(now.into()),
+                ..Default::default()
+            };
+
+            record
+                .insert(&self.db)
+                .await
+                .context("failed to insert ai suggestion")?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn list_ai_suggestions(&self) -> Result<Vec<StoredAiSuggestion>> {
+        let rows = ai_suggestions::Entity::find()
+            .order_by_desc(ai_suggestions::Column::CreatedAt)
+            .all(&self.db)
+            .await
+            .context("failed to query ai suggestions")?;
+
+        rows.into_iter()
+            .map(|row| {
+                let evidence = serde_json::from_str::<Vec<String>>(&row.evidence_json)
+                    .context("failed to parse ai suggestion evidence json")?;
+                Ok(StoredAiSuggestion {
+                    suggestion_id: row.suggestion_id,
+                    title: row.title,
+                    summary: row.summary,
+                    badge: row.badge,
+                    confidence: row.confidence,
+                    evidence,
+                    proposed_rule: row.proposed_rule,
+                    model_name: row.model_name,
+                    provider: row.provider,
+                    created_at: row.created_at.into(),
+                })
+            })
+            .collect()
+    }
+
+    pub async fn upsert_ai_event_explanation(
+        &self,
+        request_id: Option<&str>,
+        explanation: &AiExplanation,
+        provider: &str,
+        model_name: &str,
+    ) -> Result<()> {
+        if let Some(request_id) = request_id {
+            ai_event_explanations::Entity::delete_many()
+                .filter(ai_event_explanations::Column::RequestId.eq(request_id.to_string()))
+                .exec(&self.db)
+                .await
+                .context("failed to clear ai event explanation cache")?;
+        }
+
+        let record = ai_event_explanations::ActiveModel {
+            request_id: Set(request_id.map(|value| value.to_string())),
+            title: Set(explanation.title.clone()),
+            summary: Set(explanation.summary.clone()),
+            risk: Set(explanation.risk.clone()),
+            confidence: Set(explanation.confidence.clone()),
+            evidence_json: Set(serde_json::to_string(&explanation.evidence)?),
+            next_steps_json: Set(serde_json::to_string(&explanation.next_steps)?),
+            model_name: Set(model_name.to_string()),
+            provider: Set(provider.to_string()),
+            created_at: Set(Utc::now().into()),
+            ..Default::default()
+        };
+
+        record
+            .insert(&self.db)
+            .await
+            .context("failed to insert ai event explanation")?;
+        Ok(())
+    }
+
+    pub async fn get_ai_event_explanation(
+        &self,
+        request_id: &str,
+    ) -> Result<Option<StoredAiExplanation>> {
+        let row = ai_event_explanations::Entity::find()
+            .filter(ai_event_explanations::Column::RequestId.eq(request_id.to_string()))
+            .order_by_desc(ai_event_explanations::Column::CreatedAt)
+            .one(&self.db)
+            .await
+            .context("failed to query ai event explanation")?;
+
+        row.map(map_ai_event_explanation).transpose()
     }
 
     pub async fn load_or_seed_console_settings(
@@ -414,7 +561,39 @@ impl Store {
             "failed to create http observations schema",
         )
         .await?;
+        self.create_entity_table(
+            backend,
+            self.create_table_statement(&schema, ai_suggestions::Entity),
+            "failed to create ai suggestions schema",
+        )
+        .await?;
+        self.create_entity_table(
+            backend,
+            self.create_table_statement(&schema, ai_event_explanations::Entity),
+            "failed to create ai event explanations schema",
+        )
+        .await?;
         self.ensure_indexes().await?;
+        Ok(())
+    }
+
+    async fn ensure_postgres_schema(&self, database: &DatabaseConfig) -> Result<()> {
+        if self.db.get_database_backend() != DbBackend::Postgres {
+            return Ok(());
+        }
+
+        let Some(schema_name) = postgres_search_path_schema(&database.url) else {
+            return Ok(());
+        };
+
+        self.db
+            .execute(Statement::from_string(
+                DbBackend::Postgres,
+                format!("CREATE SCHEMA IF NOT EXISTS \"{}\"", escape_postgres_identifier(&schema_name)),
+            ))
+            .await
+            .with_context(|| format!("failed to create postgres schema: {schema_name}"))?;
+
         Ok(())
     }
 
@@ -542,6 +721,51 @@ impl Store {
             ))
             .await
             .context("failed to create http_observations table")?;
+        self.db
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                r#"
+                CREATE TABLE IF NOT EXISTS ai_suggestions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    suggestion_id TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    badge TEXT NOT NULL,
+                    confidence TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    proposed_rule TEXT NULL,
+                    model_name TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                "#
+                .to_string(),
+            ))
+            .await
+            .context("failed to create ai_suggestions table")?;
+        self.db
+            .execute(Statement::from_string(
+                DbBackend::Sqlite,
+                r#"
+                CREATE TABLE IF NOT EXISTS ai_event_explanations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    request_id TEXT NULL,
+                    title TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    risk TEXT NOT NULL,
+                    confidence TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    next_steps_json TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                "#
+                .to_string(),
+            ))
+            .await
+            .context("failed to create ai_event_explanations table")?;
         Ok(())
     }
 
@@ -597,6 +821,18 @@ impl Store {
                 .col(http_observations::Column::DurationMs)
                 .if_not_exists()
                 .to_owned(),
+            Index::create()
+                .name("idx-ai-suggestions-created-at")
+                .table(ai_suggestions::Entity)
+                .col(ai_suggestions::Column::CreatedAt)
+                .if_not_exists()
+                .to_owned(),
+            Index::create()
+                .name("idx-ai-event-explanations-request-id")
+                .table(ai_event_explanations::Entity)
+                .col(ai_event_explanations::Column::RequestId)
+                .if_not_exists()
+                .to_owned(),
         ];
 
         for statement in indexes {
@@ -645,4 +881,83 @@ impl Store {
                 .unwrap_or(false)
         }))
     }
+}
+
+fn map_ai_event_explanation(row: ai_event_explanations::Model) -> Result<StoredAiExplanation> {
+    let evidence = serde_json::from_str::<Vec<String>>(&row.evidence_json)
+        .context("failed to parse ai explanation evidence json")?;
+    let next_steps = serde_json::from_str::<Vec<String>>(&row.next_steps_json)
+        .context("failed to parse ai explanation next steps json")?;
+    Ok(StoredAiExplanation {
+        request_id: row.request_id,
+        title: row.title,
+        summary: row.summary,
+        risk: row.risk,
+        confidence: row.confidence,
+        evidence,
+        next_steps,
+        model_name: row.model_name,
+        provider: row.provider,
+        created_at: row.created_at.into(),
+    })
+}
+
+fn postgres_search_path_schema(database_url: &str) -> Option<String> {
+    let query = database_url.split_once('?')?.1;
+    for pair in query.split('&') {
+        let (key, value) = pair.split_once('=')?;
+        if key == "options[search_path]" {
+            let decoded = percent_decode(value);
+            let schema = decoded.trim();
+            if !schema.is_empty() {
+                return Some(schema.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'%' if index + 2 < bytes.len() => {
+                let hi = bytes[index + 1];
+                let lo = bytes[index + 2];
+                if let (Some(hi), Some(lo)) = (hex_value(hi), hex_value(lo)) {
+                    out.push((hi << 4) | lo);
+                    index += 3;
+                    continue;
+                }
+                out.push(bytes[index]);
+                index += 1;
+            }
+            b'+' => {
+                out.push(b' ');
+                index += 1;
+            }
+            byte => {
+                out.push(byte);
+                index += 1;
+            }
+        }
+    }
+
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn escape_postgres_identifier(value: &str) -> String {
+    value.replace('"', "\"\"")
 }

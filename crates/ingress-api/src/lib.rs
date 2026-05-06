@@ -5,6 +5,7 @@ pub mod routes {
     pub const EVENTS: &str = "/api/console/events";
     pub const RULES: &str = "/api/console/rules";
     pub const SUGGESTIONS: &str = "/api/console/suggestions";
+    pub const AI_EXPLAIN: &str = "/api/console/events/explain";
     pub const APPROVALS: &str = "/api/console/approvals";
     pub const SETTINGS: &str = "/api/console/settings";
 }
@@ -44,6 +45,7 @@ pub struct EventItemDto {
     pub subtitle: String,
     pub severity: String,
     pub host: Option<String>,
+    pub host_status: Option<String>,
     pub subject: Option<String>,
     pub user_agent: Option<String>,
     pub country: Option<String>,
@@ -84,11 +86,31 @@ pub struct RuleRowDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SuggestionItemDto {
+    pub id: String,
     pub title: String,
     pub summary: String,
     pub badge: String,
+    pub confidence: Option<String>,
+    pub evidence: Vec<String>,
+    pub proposed_rule: Option<String>,
+    pub model: Option<String>,
+    pub generated_at: Option<String>,
     pub primary_action: String,
     pub secondary_action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiExplanationDto {
+    pub request_id: Option<String>,
+    pub title: String,
+    pub summary: String,
+    pub risk: String,
+    pub confidence: String,
+    pub evidence: Vec<String>,
+    pub next_steps: Vec<String>,
+    pub model: Option<String>,
+    pub generated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,6 +159,8 @@ pub struct EventsOverviewDto {
     pub details: Vec<DetailItemDto>,
     #[serde(default)]
     pub protected_hosts: Vec<String>,
+    #[serde(default)]
+    pub observed_hosts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,6 +179,9 @@ pub struct SuggestionsOverviewDto {
     pub filters: Vec<FilterChipDto>,
     pub suggestions: Vec<SuggestionItemDto>,
     pub details: Vec<DetailItemDto>,
+    pub ai_enabled: bool,
+    pub ai_provider: Option<String>,
+    pub ai_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,4 +216,17 @@ pub struct ConsoleListQuery {
 pub struct ApprovalRequest {
     pub rule_id: String,
     pub approved_by: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExplainEventRequest {
+    pub request_id: Option<String>,
+    pub host: Option<String>,
+    pub path: String,
+    pub method: String,
+    pub status_code: Option<i32>,
+    pub response_time_ms: Option<i64>,
+    pub client_ip: String,
+    pub user_agent: Option<String>,
 }

@@ -1,3 +1,4 @@
+mod ai;
 mod console;
 mod config;
 mod entities;
@@ -8,6 +9,7 @@ mod security;
 mod store;
 
 use anyhow::{Context, Result};
+use ai::AiService;
 use console::ConsoleSettingsState;
 use ip_intel::IpIntelService;
 use observability::ObservabilityService;
@@ -75,7 +77,8 @@ async fn main() -> Result<()> {
         ip_intel,
     )
     .start();
-    let state = http::AppState::new(store, config, runtime_settings);
+    let ai_service = Arc::new(AiService::new(Arc::new(config.ai.clone()))?);
+    let state = http::AppState::new(store, config, runtime_settings, ai_service);
     let listener = TcpListener::bind(listen_addr)
         .await
         .with_context(|| format!("failed to bind HTTP listener on {listen_addr}"))?;

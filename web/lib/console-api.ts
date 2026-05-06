@@ -14,10 +14,20 @@ import type {
   RulesOverviewDto,
   SettingsOverviewDto,
   SettingsStateDto,
+  AiExplanationDto,
   SuggestionItemDto,
   SuggestionsOverviewDto,
 } from "./console-types"
 import type { EventRow } from "@/components/console"
+
+export type HostStatus = "protected" | "unprotected" | "unknown"
+
+export interface HostInventoryItem {
+  host: string
+  status: HostStatus
+  isProtected: boolean
+  seenInEvents: boolean
+}
 
 const consoleHeaders = {
   "x-console-subject": process.env.NEXT_PUBLIC_CONSOLE_SUBJECT ?? "admin",
@@ -240,10 +250,15 @@ export function normalizeRules(rules: RuleRowDto[]) {
 
 export function normalizeSuggestions(suggestions: SuggestionItemDto[]) {
   return suggestions.map((item, index) => ({
-    id: `suggestion-${index}`,
+    id: item.id || `suggestion-${index}`,
     title: translateText(item.title),
     summary: translateText(item.summary),
     badge: translateText(item.badge),
+    confidence: item.confidence ?? undefined,
+    evidence: item.evidence ?? [],
+    proposedRule: item.proposedRule ?? undefined,
+    model: item.model ?? undefined,
+    generatedAt: item.generatedAt ?? undefined,
     primaryAction: translateText(item.primaryAction),
     secondaryAction: translateText(item.secondaryAction),
   }))
@@ -301,6 +316,13 @@ function translateEventSubtitle(subtitle: string) {
     .replace(/^DELETE /, "DELETE ")
     .replace(" from ", " · 来源 ")
     .replace(" as ", " · 主体 ")
+}
+
+function translateHostStatus(status?: string | null): HostStatus {
+  if (status === "protected" || status === "unprotected") {
+    return status
+  }
+  return "unknown"
 }
 
 function parseEventSubtitle(subtitle: string) {
@@ -363,6 +385,7 @@ export function normalizeEventRows(events: EventItemDto[]) {
       method: parsed.method,
       path: parsed.path,
       host: event.host?.trim() || undefined,
+      hostStatus: translateHostStatus(event.hostStatus),
       subject: event.subject?.trim() || parsed.subject,
       statusCode,
       rule: rule ? translateEventTitle(rule).replace(/\s*\[.*\]/, "") : undefined,
@@ -517,6 +540,55 @@ export function buildHostOptions(rows: EventRow[]) {
   ).sort((a, b) => a.label.localeCompare(b.label))
 }
 
+export function buildHostInventory(
+  protectedHosts: string[] = [],
+  observedHosts: string[] = [],
+  rows: EventRow[] = []
+): HostInventoryItem[] {
+  const inventory = new Map<string, HostInventoryItem>()
+
+  for (const host of protectedHosts.map((item) => item.trim()).filter(Boolean)) {
+    inventory.set(host, {
+      host,
+      status: "protected",
+      isProtected: true,
+      seenInEvents: false,
+    })
+  }
+
+  for (const host of observedHosts.map((item) => item.trim()).filter(Boolean)) {
+    const current = inventory.get(host)
+    inventory.set(host, {
+      host,
+      status: current?.status ?? "unprotected",
+      isProtected: current?.isProtected ?? false,
+      seenInEvents: true,
+    })
+  }
+
+  for (const row of rows) {
+    const host = row.host?.trim()
+    if (!host) continue
+    const current = inventory.get(host)
+    const nextStatus = row.hostStatus && row.hostStatus !== "unknown"
+      ? row.hostStatus
+      : (current?.status ?? "unprotected")
+    inventory.set(host, {
+      host,
+      status: nextStatus,
+      isProtected: nextStatus === "protected",
+      seenInEvents: true,
+    })
+  }
+
+  return Array.from(inventory.values()).sort((left, right) => {
+    if (left.isProtected !== right.isProtected) {
+      return left.isProtected ? -1 : 1
+    }
+    return left.host.localeCompare(right.host)
+  })
+}
+
 export async function getDashboardOverview() {
   return request<ConsoleResponse<DashboardOverviewDto>>("/api/console/dashboard")
 }
@@ -531,6 +603,40 @@ export async function getRulesOverview() {
 
 export async function getSuggestionsOverview() {
   return request<ConsoleResponse<SuggestionsOverviewDto>>("/api/console/suggestions")
+}
+
+export async function refreshSuggestionsOverview() {
+  return request<ConsoleResponse<SuggestionsOverviewDto>>("/api/console/suggestions", {
+    method: "POST",
+  })
+}
+
+export async function explainEvent(payload: {
+  requestId?: string
+  host?: string
+  path: string
+  method: string
+  statusCode?: number
+  responseTimeMs?: number
+  clientIp: string
+  userAgent?: string
+}) {
+  return request<ConsoleResponse<AiExplanationDto>>("/api/console/events/explain", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      request_id: payload.requestId,
+      host: payload.host,
+      path: payload.path,
+      method: payload.method,
+      status_code: payload.statusCode,
+      response_time_ms: payload.responseTimeMs,
+      client_ip: payload.clientIp,
+      user_agent: payload.userAgent,
+    }),
+  })
 }
 
 export async function getApprovalsOverview() {

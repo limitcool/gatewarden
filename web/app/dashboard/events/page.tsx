@@ -21,7 +21,7 @@ import { Activity, TrendingDown, Clock, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { buildCountryOptions, buildHostOptions, buildLiveEventStats, defaultIpInfoFromEventRows, getEventsOverview, normalizeEventRows, normalizeFilters, normalizeMetrics } from "@/lib/console-api"
+import { buildCountryOptions, buildHostInventory, buildHostOptions, buildLiveEventStats, defaultIpInfoFromEventRows, getEventsOverview, normalizeEventRows, normalizeFilters, normalizeMetrics } from "@/lib/console-api"
 import type { EventsOverviewDto } from "@/lib/console-types"
 import { toast } from "sonner"
 
@@ -183,6 +183,11 @@ export default function EventsPage() {
 
   const rawEventRows = useMemo(() => normalizeEventRows(data?.stream ?? []), [data?.stream])
   const protectedHosts = data?.protectedHosts ?? []
+  const observedHosts = data?.observedHosts ?? []
+  const hostInventory = useMemo(
+    () => buildHostInventory(protectedHosts, observedHosts, rawEventRows),
+    [protectedHosts, observedHosts, rawEventRows]
+  )
   const eventRows = useMemo(() => {
     return rawEventRows.filter((event) => {
       const matchesFilter =
@@ -281,14 +286,46 @@ export default function EventsPage() {
         }
       />
 
-      {protectedHosts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-3">
-          <span className="text-xs text-muted-foreground">当前仅展示受保护域名</span>
-          {protectedHosts.map((host) => (
-            <Badge key={host} variant="secondary" className="h-6 rounded-full px-2.5 text-xs font-medium">
-              {host}
-            </Badge>
-          ))}
+      {hostInventory.length > 0 && (
+        <div className="rounded-lg border border-border bg-card px-4 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <div className="text-sm font-medium text-foreground">域名接入状态</div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                已接入的域名会按 Gatewarden forward auth 受保护显示，未接入但出现在日志里的域名会标红，方便排查遗漏接入。
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{hostInventory.filter((item) => item.isProtected).length} 个已接入</span>
+              <span>·</span>
+              <span>{hostInventory.filter((item) => !item.isProtected).length} 个未接入</span>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {hostInventory.map((item) => (
+              <button
+                key={item.host}
+                type="button"
+                onClick={() => handleHostChange(item.host)}
+                className={[
+                  "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  hostFilter === item.host
+                    ? "border-foreground bg-foreground text-background"
+                    : item.isProtected
+                      ? "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
+                      : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15",
+                ].join(" ")}
+              >
+                <span className="font-mono">{item.host}</span>
+                <span className="text-[10px] opacity-80">{item.isProtected ? "已接入" : "未接入"}</span>
+              </button>
+            ))}
+            {hostFilter !== "all" && (
+              <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" onClick={() => handleHostChange("all")}>
+                清除域名筛选
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

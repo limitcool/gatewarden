@@ -11,6 +11,8 @@ pub struct AppConfig {
     pub identity: IdentityConfig,
     pub security: SecurityConfig,
     #[serde(default)]
+    pub ai: AiConfig,
+    #[serde(default)]
     pub observability: ObservabilityConfig,
 }
 
@@ -28,6 +30,7 @@ impl AppConfig {
     fn validate(&self) -> Result<()> {
         self.server.listen_addr()?;
         self.security.validate()?;
+        self.ai.validate()?;
         Ok(())
     }
 
@@ -36,6 +39,20 @@ impl AppConfig {
             let trimmed = database_url.trim();
             if !trimmed.is_empty() {
                 self.database.url = trimmed.to_string();
+            }
+        }
+
+        if let Ok(base_url) = std::env::var("GATEWARDEN_AI_BASE_URL") {
+            let trimmed = base_url.trim();
+            if !trimmed.is_empty() {
+                self.ai.base_url = Some(trimmed.to_string());
+            }
+        }
+
+        if let Ok(model) = std::env::var("GATEWARDEN_AI_MODEL") {
+            let trimmed = model.trim();
+            if !trimmed.is_empty() {
+                self.ai.model = trimmed.to_string();
             }
         }
     }
@@ -97,6 +114,79 @@ impl SecurityConfig {
 
 fn default_console_admin_groups() -> Vec<String> {
     vec!["admin".to_string()]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_ai_provider")]
+    pub provider: String,
+    #[serde(default = "default_ai_model")]
+    pub model: String,
+    #[serde(default = "default_ai_api_key_env")]
+    pub api_key_env: String,
+    #[serde(default)]
+    pub base_url: Option<String>,
+    #[serde(default = "default_ai_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_ai_system_prompt")]
+    pub system_prompt: String,
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: default_ai_provider(),
+            model: default_ai_model(),
+            api_key_env: default_ai_api_key_env(),
+            base_url: None,
+            timeout_ms: default_ai_timeout_ms(),
+            system_prompt: default_ai_system_prompt(),
+        }
+    }
+}
+
+impl AiConfig {
+    fn validate(&self) -> Result<()> {
+        anyhow::ensure!(
+            matches!(
+                self.provider.trim().to_ascii_lowercase().as_str(),
+                "openai" | "anthropic" | "gemini" | "groq" | "deepseek" | "xai" | "ollama"
+            ),
+            "ai.provider must be one of: openai, anthropic, gemini, groq, deepseek, xai, ollama"
+        );
+        anyhow::ensure!(
+            !self.model.trim().is_empty(),
+            "ai.model must not be empty"
+        );
+        anyhow::ensure!(
+            self.timeout_ms > 0,
+            "ai.timeout_ms must be greater than 0"
+        );
+        Ok(())
+    }
+}
+
+fn default_ai_provider() -> String {
+    "openai".to_string()
+}
+
+fn default_ai_model() -> String {
+    "gpt-4.1-mini".to_string()
+}
+
+fn default_ai_api_key_env() -> String {
+    "GATEWARDEN_AI_API_KEY".to_string()
+}
+
+fn default_ai_timeout_ms() -> u64 {
+    15_000
+}
+
+fn default_ai_system_prompt() -> String {
+    "You are Gatewarden, an AI security analyst. Produce concise, evidence-based, operator-reviewable guidance. Never claim enforcement happened unless the evidence explicitly shows it. Prefer narrow deterministic rule drafts over broad vague advice.".to_string()
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

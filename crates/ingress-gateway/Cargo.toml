@@ -16,4 +16,4 @@ categories = ["network-programming", "web-programming", "authentication"]
 [dependencies]
 anyhow.workspace = true
 http.workspace = true
-ingress-core = { path = "../ingress-core", version = "0.1.3" }
+ingress-core = { path = "../ingress-core", version = "0.1.4" }
