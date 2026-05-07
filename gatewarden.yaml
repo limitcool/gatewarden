@@ -7,9 +7,12 @@ database:
   # url: "postgres://gatewarden:change-me@127.0.0.1:5432/gatewarden"
 
 identity:
+  # Keep your existing OIDC / auth proxy in front of Gatewarden.
+  # Gatewarden expects trusted identity headers instead of acting as the OIDC relying party itself.
   mode: "trusted_header"
   provider_hint: "external-oidc"
   trusted_headers:
+    # Map these to the headers your auth layer already emits.
     authenticated: "X-Authenticated"
     subject: "Remote-User"
     email: "Remote-Email"
@@ -47,9 +50,13 @@ ai:
 
 observability:
   caddy_access_log:
+    # Turn this on after Caddy is writing structured JSON access logs to the mounted path below.
     enabled: false
+    # Example target inside the container. Mount your real Caddy JSON log here if Caddy runs elsewhere.
     path: "app/data/caddy-access.jsonl"
+    # Caddy log polling interval in milliseconds.
     poll_interval_ms: 1000
   geoip:
     enabled: false
+    # Optional MMDB file for country / ASN / proxy enrichment.
     database_path: "app/data/GeoLite2-City.mmdb"

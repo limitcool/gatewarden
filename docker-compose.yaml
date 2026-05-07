@@ -1,20 +1,20 @@
 services:
   gatewarden:
-    # Builds the all-in-one image from this repository.
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: gatewarden:0.1.5
+    # Published all-in-one image:
+    # - Web console inside the container listens on 3000
+    # - Gatewarden API / forward_auth inside the container listens on 4000
+    image: ghcr.io/limitcool/gatewarden:latest
     container_name: gatewarden
     restart: unless-stopped
     ports:
-      # Web console entrypoint. The Rust API stays inside the container.
-      - "3000:3000"
-    environment:
-      # Optional for future split deployments. Keep the default when using this single-container setup.
-      CONSOLE_API_BASE_URL: "http://127.0.0.1:4000"
+      # Browser access to the Gatewarden console.
+      - "127.0.0.1:3000:3000"
+      # Caddy forward_auth target on the same host.
+      # Point your Caddyfile to http://127.0.0.1:4000
+      - "127.0.0.1:4000:4000"
     volumes:
-      # Main runtime config. Switch database.url to PostgreSQL here if you want an external database.
+      # Main runtime config.
+      # Use gatewarden.yaml to switch SQLite -> PostgreSQL, trusted headers, protected hosts, and observability.
       - ./gatewarden.yaml:/opt/gatewarden/gatewarden.yaml:ro
       # SQLite DB, optional MMDB, and local runtime data.
       - ./docker-data:/opt/gatewarden/app/data

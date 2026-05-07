@@ -99,24 +99,52 @@ Gatewarden 目前仍处于早期阶段，但已经可以作为本地或单节点
 
 ## 快速开始
 
-### Docker Compose
+### Docker Compose SOP
+
+1. 准备一个工作目录，并放入这两个文件：
+
+- `docker-compose.yaml`
+- `gatewarden.yaml`
+
+2. 启动 Gatewarden：
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
-然后访问：
+3. 浏览器打开控制台：
 
 ```text
 http://127.0.0.1:3000
 ```
+
+4. 在 Caddy 里把 `forward_auth` 指向：
+
+```text
+http://127.0.0.1:4000
+```
+
+端口职责：
+
+- `3000`：给浏览器访问的控制台
+- `4000`：给 Caddy 调用的 Gatewarden API / `forward_auth`
 
 默认挂载：
 
 - `./gatewarden.yaml` -> `/opt/gatewarden/gatewarden.yaml`
 - `./docker-data` -> `/opt/gatewarden/app/data`
 
-默认 compose 方案使用 `./docker-data` 里的 SQLite 数据库。
+默认 compose 方案会：
+
+- 直接拉取 `ghcr.io/limitcool/gatewarden:latest`
+- 使用 `./docker-data` 里的 SQLite
+- 不需要你额外设置 `CONSOLE_API_BASE_URL`
+
+它会直接拉取发布好的镜像：
+
+```text
+ghcr.io/limitcool/gatewarden:latest
+```
 
 ### 1. 启动后端
 
@@ -170,6 +198,26 @@ pnpm --dir web run build
 
 Gatewarden 适合部署在真实认证层之后，作为一层 AI 辅助、但执行仍然确定性的 WAF。
 
+如果你已经有 OIDC：
+
+- 保留你现有的 OIDC 提供方或认证代理
+- 先由那一层完成用户认证
+- 让它继续输出可信身份头，比如 `Remote-User`、`Remote-Email`、`Remote-Groups`、`X-Auth-Provider`、`X-Authenticated`
+- 再在 `gatewarden.yaml` 里把 `identity.trusted_headers.*` 映射到你的真实头名
+
+这种模式下，Gatewarden 不需要替换你现有的 OIDC 登录流。它只消费认证完成后的可信身份上下文。
+
+部署口径：
+
+- 浏览器 -> `http://127.0.0.1:3000`
+- Caddy `forward_auth` -> `http://127.0.0.1:4000/api/forward-auth`
+- 你的业务应用仍然像以前一样挂在 Caddy 后面
+
+这也是为什么这里会同时出现 `3000` 和 `4000`：
+
+- `3000` 是面向用户的控制台
+- `4000` 是给 Caddy 调用的内部 API 面
+
 可复用的 `Caddyfile` 片段：
 
 ```caddy
@@ -179,6 +227,44 @@ Gatewarden 适合部署在真实认证层之后，作为一层 AI 辅助、但�
 		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
 	}
 }
+```
+
+用于采集状态码、域名、请求 ID、User-Agent 与响应时间的结构化 access log 示例：
+
+```caddy
+{
+	log {
+		output file /var/log/caddy/access.jsonl
+		format json
+	}
+}
+
+app.example.com {
+	log {
+		output file /var/log/caddy/access.jsonl
+		format json
+	}
+
+	import gatewarden_forward_auth
+
+	reverse_proxy http://127.0.0.1:8080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Uri {uri}
+	}
+}
+```
+
+然后在 `gatewarden.yaml` 里开启日志摄取，并把路径指向同一份 JSON 日志：
+
+```yaml
+observability:
+  caddy_access_log:
+    enabled: true
+    path: "app/data/caddy-access.jsonl"
+    poll_interval_ms: 1000
 ```
 
 最小使用示例：

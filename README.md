@@ -99,24 +99,52 @@ Main directories:
 
 ## Quick Start
 
-### Docker Compose
+### Docker Compose SOP
+
+1. Create a working directory and place these files inside it:
+
+- `docker-compose.yaml`
+- `gatewarden.yaml`
+
+2. Start Gatewarden:
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
-Then open:
+3. Open the web console in your browser:
 
 ```text
 http://127.0.0.1:3000
 ```
+
+4. Point Caddy `forward_auth` to:
+
+```text
+http://127.0.0.1:4000
+```
+
+Port roles:
+
+- `3000`: browser-facing web console
+- `4000`: Gatewarden API and `forward_auth` endpoint for Caddy
 
 Default mounts:
 
 - `./gatewarden.yaml` -> `/opt/gatewarden/gatewarden.yaml`
 - `./docker-data` -> `/opt/gatewarden/app/data`
 
-The default compose setup uses SQLite inside `./docker-data`.
+The default compose setup:
+
+- pulls `ghcr.io/limitcool/gatewarden:latest`
+- uses SQLite inside `./docker-data`
+- does not require you to set `CONSOLE_API_BASE_URL`
+
+It pulls the published image from:
+
+```text
+ghcr.io/limitcool/gatewarden:latest
+```
 
 ### 1. Start the backend
 
@@ -170,6 +198,26 @@ pnpm --dir web run build
 
 Gatewarden is designed to work behind a real auth layer as an AI-assisted WAF with deterministic enforcement.
 
+If you already have OIDC:
+
+- keep your current OIDC provider or auth proxy
+- let that layer authenticate the user first
+- have it emit trusted headers such as `Remote-User`, `Remote-Email`, `Remote-Groups`, `X-Auth-Provider`, and `X-Authenticated`
+- point `gatewarden.yaml` `identity.trusted_headers.*` at those real header names
+
+Gatewarden does not need to replace your existing OIDC flow for this model. It consumes trusted identity context after authentication.
+
+Deployment model:
+
+- browser -> `http://127.0.0.1:3000`
+- Caddy `forward_auth` -> `http://127.0.0.1:4000/api/forward-auth`
+- your upstream app stays behind Caddy as usual
+
+This is why both `3000` and `4000` exist:
+
+- `3000` is the user-facing console
+- `4000` is the internal Gatewarden API surface that Caddy calls
+
 Reusable `Caddyfile` snippet:
 
 ```caddy
@@ -179,6 +227,44 @@ Reusable `Caddyfile` snippet:
 		copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
 	}
 }
+```
+
+Structured access log example for status code, host, request ID, user agent, and latency ingestion:
+
+```caddy
+{
+	log {
+		output file /var/log/caddy/access.jsonl
+		format json
+	}
+}
+
+app.example.com {
+	log {
+		output file /var/log/caddy/access.jsonl
+		format json
+	}
+
+	import gatewarden_forward_auth
+
+	reverse_proxy http://127.0.0.1:8080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Uri {uri}
+	}
+}
+```
+
+Then enable log ingestion in `gatewarden.yaml` and point it at the same JSON log file path:
+
+```yaml
+observability:
+  caddy_access_log:
+    enabled: true
+    path: "app/data/caddy-access.jsonl"
+    poll_interval_ms: 1000
 ```
 
 Minimal usage example:
