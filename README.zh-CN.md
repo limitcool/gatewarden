@@ -332,6 +332,13 @@ accounts.example.com {
 gatewarden.yaml
 ```
 
+在修改配置前，先明确端口职责：
+
+- 浏览器控制台：`http://127.0.0.1:3000`
+- Gatewarden API 与 Caddy `forward_auth`：`http://127.0.0.1:4000`
+- `gatewarden.yaml` 里的 `server.listen_addr` 指的是 `4000` 这个 Gatewarden API 监听地址，不是浏览器访问的控制台端口
+- 如果你使用默认 Docker Compose，控制台端口由镜像和 compose 文件处理，不在 `gatewarden.yaml` 里配置
+
 完整示例：
 
 ```yaml

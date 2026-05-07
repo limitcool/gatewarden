@@ -332,6 +332,13 @@ The project uses a YAML runtime config:
 gatewarden.yaml
 ```
 
+Port mapping before you edit the config:
+
+- browser console: `http://127.0.0.1:3000`
+- Gatewarden API and Caddy `forward_auth`: `http://127.0.0.1:4000`
+- `server.listen_addr` in `gatewarden.yaml` refers to the Gatewarden API listener on `4000`, not the browser console port
+- if you use the default Docker Compose setup, the console port is handled by the container image and compose file, not by `gatewarden.yaml`
+
 Complete example:
 
 ```yaml

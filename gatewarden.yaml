@@ -1,4 +1,10 @@
 server:
+  # Gatewarden Rust API / forward_auth listener.
+  # Caddy should call this address for /api/forward-auth.
+  # This is not the browser-facing console port.
+  # In the default Docker Compose deployment:
+  # - browser console: http://127.0.0.1:3000
+  # - Gatewarden API / forward_auth: http://127.0.0.1:4000
   listen_addr: "127.0.0.1:4000"
 
 database:
