@@ -13,10 +13,12 @@ import { Clock, CheckCircle, Timer } from "lucide-react"
 import { toast } from "sonner"
 import { approveRule, getApprovalsOverview, normalizeApprovals, normalizeDetails, normalizeFilters, normalizeMetrics, requestRuleRevision } from "@/lib/console-api"
 import type { ApprovalsOverviewDto } from "@/lib/console-types"
+import { useI18n } from "@/components/i18n-provider"
 
 const iconMap = [Clock, CheckCircle, Timer]
 
 export default function ApprovalsPage() {
+  const { t, locale } = useI18n()
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchValue, setSearchValue] = useState("")
   const [isPending, startTransition] = useTransition()
@@ -27,25 +29,26 @@ export default function ApprovalsPage() {
       const response = await getApprovalsOverview()
       setData(response.data)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "加载审批队列失败")
+      toast.error(error instanceof Error ? error.message : t("page.approvals.toast.loadError"))
     }
   }
 
   useEffect(() => {
     void loadApprovals()
   }, [])
-  const filters = useMemo(() => normalizeFilters(data?.filters ?? []).map((f) => ({
+  const filters = useMemo(() => normalizeFilters(data?.filters ?? [], locale).map((f) => ({
     ...f,
     active: f.value === activeFilter,
-  })), [data?.filters, activeFilter])
+  })), [data?.filters, activeFilter, locale])
 
   const approvals = useMemo(() => {
-    return normalizeApprovals(data?.approvals ?? []).filter((approval) => {
+    return normalizeApprovals(data?.approvals ?? [], locale).filter((approval) => {
       const matchesFilter =
         activeFilter === "all" ||
         activeFilter === "owner:operator" ||
         activeFilter === "target:caddy" ||
-        (activeFilter === "state:pending" && approval.primaryAction.includes("批准")) ||
+        (activeFilter === "state:pending" &&
+          (approval.primaryAction.toLowerCase().includes("批准") || approval.primaryAction.toLowerCase().includes("approve"))) ||
         approval.badge.toLowerCase().includes(activeFilter.toLowerCase())
       const keyword = searchValue.trim().toLowerCase()
       const matchesSearch =
@@ -54,16 +57,16 @@ export default function ApprovalsPage() {
         approval.summary.toLowerCase().includes(keyword)
       return matchesFilter && matchesSearch
     })
-  }, [data?.approvals, activeFilter, searchValue])
+  }, [data?.approvals, activeFilter, searchValue, locale])
 
   const handleApprove = (approval: { name: string }) => {
     startTransition(async () => {
       try {
         await approveRule(approval.name)
-        toast.success(`已批准规则：${approval.name}`)
+        toast.success(t("page.approvals.toast.approveSuccess", { name: approval.name }))
         await loadApprovals()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "批准失败")
+        toast.error(error instanceof Error ? error.message : t("page.approvals.toast.approveError"))
       }
     })
   }
@@ -72,10 +75,10 @@ export default function ApprovalsPage() {
     startTransition(async () => {
       try {
         await requestRuleRevision(approval.name)
-        toast.success(`已退回规则：${approval.name}`)
+        toast.success(t("page.approvals.toast.revisionSuccess", { name: approval.name }))
         await loadApprovals()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "退回失败")
+        toast.error(error instanceof Error ? error.message : t("page.approvals.toast.revisionError"))
       }
     })
   }
@@ -83,12 +86,12 @@ export default function ApprovalsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="审批队列"
-        description="审核和批准待处理的规则变更"
+        title={t("page.approvals.title")}
+        description={t("page.approvals.description")}
       />
 
       <MetricsGrid columns={3}>
-        {normalizeMetrics(data?.metrics ?? []).map((metric, index) => (
+        {normalizeMetrics(data?.metrics ?? [], locale).map((metric, index) => (
           <MetricCard
             key={metric.label}
             label={metric.label}
@@ -102,24 +105,24 @@ export default function ApprovalsPage() {
       <FilterBar
         filters={filters}
         onFilterChange={setActiveFilter}
-        searchPlaceholder="搜索审批项..."
+        searchPlaceholder={t("page.approvals.search")}
         onSearch={setSearchValue}
-        onExtraAction={() => toast.message("审批页已支持状态标签和关键字检索。")}
+        onExtraAction={() => toast.message(t("page.approvals.toast.filterHelp"))}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <ApprovalQueueCard
             approvals={approvals}
-            title="待审批队列"
+            title={t("page.approvals.title")}
             onApprove={handleApprove}
             onRevision={handleRevision}
           />
         </div>
         <div>
           <DetailListCard
-            details={normalizeDetails(data?.details ?? [])}
-            title="审批详情"
+            details={normalizeDetails(data?.details ?? [], locale)}
+            title={t("page.approvals.details")}
           />
         </div>
       </div>

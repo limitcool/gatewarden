@@ -49,8 +49,8 @@ export function SettingsFormCard({
   return (
     <div className={cn("rounded-lg border border-border bg-card", className)}>
       <div className="px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">系统配置</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">配置 Gatewarden 网关的全局设置</p>
+        <h3 className="text-sm font-medium text-foreground">运行时覆盖项</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">这里只能修改少量运行时覆盖项，不是 gatewarden.yaml 的完整一对一编辑器。</p>
       </div>
       <div className="p-4 space-y-6">
         {(activeSection === "basic" || activeSection === "integrations") && (

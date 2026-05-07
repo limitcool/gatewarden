@@ -24,10 +24,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { buildCountryOptions, buildHostInventory, buildHostOptions, buildLiveEventStats, defaultIpInfoFromEventRows, getEventsOverview, normalizeEventRows, normalizeFilters, normalizeMetrics } from "@/lib/console-api"
 import type { EventsOverviewDto } from "@/lib/console-types"
 import { toast } from "sonner"
+import { useI18n } from "@/components/i18n-provider"
 
 const iconMap = [Activity, TrendingDown, Clock]
 
 export default function EventsPage() {
+  const { locale, t } = useI18n()
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchValue, setSearchValue] = useState("")
   const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null)
@@ -53,7 +55,7 @@ export default function EventsPage() {
         const response = await getEventsOverview()
         setData(response.data)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "加载事件流失败")
+        toast.error(error instanceof Error ? error.message : t("page.events.toast.loadError"))
       }
     }
 
@@ -67,7 +69,7 @@ export default function EventsPage() {
         const response = await getEventsOverview()
         setData(response.data)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "刷新失败")
+        toast.error(error instanceof Error ? error.message : t("page.events.toast.refreshError"))
       } finally {
         setTimeout(() => setIsRefreshing(false), 300)
       }
@@ -80,7 +82,7 @@ export default function EventsPage() {
     if (value !== "all") {
       setActiveFilters(prev => [
         ...prev.filter(f => f.key !== "ipVersion"),
-        { key: "ipVersion", label: "IP 版本", value: value.toUpperCase() }
+        { key: "ipVersion", label: locale === "zh-CN" ? "IP 版本" : "IP version", value: value.toUpperCase() }
       ])
     } else {
       setActiveFilters(prev => prev.filter(f => f.key !== "ipVersion"))
@@ -90,15 +92,15 @@ export default function EventsPage() {
   const handleSeverityChange = (value: string) => {
     setSeverityFilter(value)
     const severityLabels: Record<string, string> = {
-      critical: "危险",
-      warning: "告警",
-      info: "信息",
-      success: "成功",
+      critical: locale === "zh-CN" ? "危险" : "Critical",
+      warning: locale === "zh-CN" ? "告警" : "Warning",
+      info: locale === "zh-CN" ? "信息" : "Info",
+      success: locale === "zh-CN" ? "成功" : "Success",
     }
     if (value !== "all") {
       setActiveFilters(prev => [
         ...prev.filter(f => f.key !== "severity"),
-        { key: "severity", label: "严重程度", value: severityLabels[value] || value }
+        { key: "severity", label: locale === "zh-CN" ? "严重程度" : "Severity", value: severityLabels[value] || value }
       ])
     } else {
       setActiveFilters(prev => prev.filter(f => f.key !== "severity"))
@@ -111,7 +113,7 @@ export default function EventsPage() {
     if (value !== "all" && countryOption) {
       setActiveFilters(prev => [
         ...prev.filter(f => f.key !== "country"),
-        { key: "country", label: "国家", value: countryOption.label }
+        { key: "country", label: locale === "zh-CN" ? "国家" : "Country", value: countryOption.label }
       ])
     } else {
       setActiveFilters(prev => prev.filter(f => f.key !== "country"))
@@ -124,7 +126,7 @@ export default function EventsPage() {
     if (value !== "all" && hostOption) {
       setActiveFilters((prev) => [
         ...prev.filter((f) => f.key !== "host"),
-        { key: "host", label: "域名", value: hostOption.label },
+        { key: "host", label: locale === "zh-CN" ? "域名" : "Host", value: hostOption.label },
       ])
     } else {
       setActiveFilters((prev) => prev.filter((f) => f.key !== "host"))
@@ -133,20 +135,20 @@ export default function EventsPage() {
 
   const handleStatusCodeChange = (value: string) => {
     const statusLabels: Record<string, string> = {
-      "2xx": "2xx 成功",
-      "4xx": "4xx 客户端错误",
-      "5xx": "5xx 服务端错误",
-      "404": "404 未找到",
-      "429": "429 限流",
-      "500": "500 内部错误",
-      "502": "502 网关错误",
-      "504": "504 超时",
+      "2xx": locale === "zh-CN" ? "2xx 成功" : "2xx Success",
+      "4xx": locale === "zh-CN" ? "4xx 客户端错误" : "4xx Client errors",
+      "5xx": locale === "zh-CN" ? "5xx 服务端错误" : "5xx Server errors",
+      "404": locale === "zh-CN" ? "404 未找到" : "404 Not found",
+      "429": locale === "zh-CN" ? "429 限流" : "429 Rate limited",
+      "500": locale === "zh-CN" ? "500 内部错误" : "500 Internal error",
+      "502": locale === "zh-CN" ? "502 网关错误" : "502 Gateway error",
+      "504": locale === "zh-CN" ? "504 超时" : "504 Timeout",
     }
     setStatusCodeFilter(value)
     if (value !== "all") {
       setActiveFilters(prev => [
         ...prev.filter(f => f.key !== "statusCode"),
-        { key: "statusCode", label: "状态码", value: statusLabels[value] || value }
+        { key: "statusCode", label: locale === "zh-CN" ? "状态码" : "Status code", value: statusLabels[value] || value }
       ])
     } else {
       setActiveFilters(prev => prev.filter(f => f.key !== "statusCode"))
@@ -176,12 +178,12 @@ export default function EventsPage() {
     setSelectedEvent(event)
   }
 
-  const filters = normalizeFilters(data?.filters ?? []).map((f) => ({
+  const filters = normalizeFilters(data?.filters ?? [], locale).map((f) => ({
     ...f,
     active: f.value === activeFilter,
   }))
 
-  const rawEventRows = useMemo(() => normalizeEventRows(data?.stream ?? []), [data?.stream])
+  const rawEventRows = useMemo(() => normalizeEventRows(data?.stream ?? [], locale), [data?.stream, locale])
   const protectedHosts = data?.protectedHosts ?? []
   const observedHosts = data?.observedHosts ?? []
   const hostInventory = useMemo(
@@ -248,10 +250,16 @@ export default function EventsPage() {
     })
   }, [rawEventRows, activeFilter, searchValue, ipVersionFilter, severityFilter, hostFilter, countryFilter, proxyFilters, statusCodeFilter])
 
-  const fallbackIpInfo = defaultIpInfoFromEventRows(eventRows)
-  const stats = buildLiveEventStats(rawEventRows)
+  const fallbackIpInfo = defaultIpInfoFromEventRows(eventRows, locale)
+  const stats = buildLiveEventStats(rawEventRows, locale)
   const countryOptions = buildCountryOptions(rawEventRows)
-  const hostOptions = buildHostOptions(rawEventRows)
+  const hostOptions = useMemo(() => {
+    const inventoryMap = new Map(hostInventory.map((item) => [item.host, item]))
+    return buildHostOptions(rawEventRows).map((option) => ({
+      ...option,
+      status: inventoryMap.get(option.value)?.status ?? "unknown",
+    }))
+  }, [hostInventory, rawEventRows])
   const responseStats = useMemo(() => {
     const withResponseTime = rawEventRows.filter((row) => row.responseTime !== undefined)
     const count = withResponseTime.length
@@ -272,8 +280,8 @@ export default function EventsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="事件流"
-        description="实时监控网关事件和请求日志"
+        title={t("page.events.title")}
+        description={t("page.events.description")}
         action={
           <Button
             variant="outline"
@@ -281,7 +289,7 @@ export default function EventsPage() {
             onClick={() => setShowStats(!showStats)}
           >
             <BarChart3 className="h-4 w-4 mr-2" />
-            {showStats ? "隐藏统计" : "显示统计"}
+            {showStats ? t("page.events.hideStats") : t("page.events.showStats")}
           </Button>
         }
       />
@@ -290,15 +298,15 @@ export default function EventsPage() {
         <div className="rounded-lg border border-border bg-card px-4 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <div className="text-sm font-medium text-foreground">域名接入状态</div>
+              <div className="text-sm font-medium text-foreground">{t("page.events.hostInventoryTitle")}</div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                已接入的域名会按 Gatewarden forward auth 受保护显示，未接入但出现在日志里的域名会标红，方便排查遗漏接入。
+                {t("page.events.hostInventoryDescription")}
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{hostInventory.filter((item) => item.isProtected).length} 个已接入</span>
+              <span>{t("page.events.hostInventoryProtected", { count: hostInventory.filter((item) => item.isProtected).length })}</span>
               <span>·</span>
-              <span>{hostInventory.filter((item) => !item.isProtected).length} 个未接入</span>
+              <span>{t("page.events.hostInventoryUnprotected", { count: hostInventory.filter((item) => !item.isProtected).length })}</span>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -317,12 +325,12 @@ export default function EventsPage() {
                 ].join(" ")}
               >
                 <span className="font-mono">{item.host}</span>
-                <span className="text-[10px] opacity-80">{item.isProtected ? "已接入" : "未接入"}</span>
+                <span className="text-[10px] opacity-80">{item.isProtected ? t("common.protected") : t("common.unprotected")}</span>
               </button>
             ))}
             {hostFilter !== "all" && (
-              <Button variant="ghost" size="sm" className="h-8 rounded-full text-xs" onClick={() => handleHostChange("all")}>
-                清除域名筛选
+              <Button variant="ghost" size="pill" onClick={() => handleHostChange("all")}>
+                {t("page.events.clearHostFilter")}
               </Button>
             )}
           </div>
@@ -333,15 +341,15 @@ export default function EventsPage() {
       {showStats && (
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="mb-4">
-            <TabsTrigger value="overview">概览</TabsTrigger>
-            <TabsTrigger value="traffic">流量分析</TabsTrigger>
-            <TabsTrigger value="geo">地理分布</TabsTrigger>
-            <TabsTrigger value="threats">威胁情报</TabsTrigger>
+            <TabsTrigger value="overview">{t("page.events.tab.overview")}</TabsTrigger>
+            <TabsTrigger value="traffic">{t("page.events.tab.traffic")}</TabsTrigger>
+            <TabsTrigger value="geo">{t("page.events.tab.geo")}</TabsTrigger>
+            <TabsTrigger value="threats">{t("page.events.tab.threats")}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="space-y-4">
             <MetricsGrid columns={3}>
-              {normalizeMetrics(data?.metrics ?? []).map((metric, index) => (
+        {normalizeMetrics(data?.metrics ?? [], locale).map((metric, index) => (
                 <MetricCard
                   key={metric.label}
                   label={metric.label}
@@ -353,27 +361,27 @@ export default function EventsPage() {
             </MetricsGrid>
             <MetricsGrid columns={4}>
               <MetricCard
-                label="平均响应时间"
+                label={t("page.events.metric.avgResponse")}
                 value={`${responseStats.average}ms`}
-                detail="最近请求的平均耗时"
+                detail={t("page.events.metric.avgResponseDetail")}
                 icon={Clock}
               />
               <MetricCard
-                label="P95 响应时间"
+                label={t("page.events.metric.p95")}
                 value={`${responseStats.p95}ms`}
-                detail="95 分位响应时间"
+                detail={t("page.events.metric.p95Detail")}
                 icon={Clock}
               />
               <MetricCard
-                label="慢请求"
+                label={t("page.events.metric.slowRequests")}
                 value={responseStats.slowRequests}
-                detail="耗时大于等于 1000ms 的请求数"
+                detail={t("page.events.metric.slowRequestsDetail")}
                 icon={TrendingDown}
               />
               <MetricCard
-                label="错误率"
+                label={t("page.events.metric.errorRate")}
                 value={`${responseStats.errorRate}%`}
-                detail="状态码 >= 400 的请求占比"
+                detail={t("page.events.metric.errorRateDetail")}
                 icon={Activity}
               />
             </MetricsGrid>
@@ -421,7 +429,7 @@ export default function EventsPage() {
         filters={filters}
         onFilterChange={setActiveFilter}
         searchValue={searchValue}
-        searchPlaceholder="搜索 IP、路径、规则..."
+        searchPlaceholder={t("page.events.search")}
         onSearch={setSearchValue}
         ipVersionValue={ipVersionFilter}
         onIPVersionChange={handleIPVersionChange}

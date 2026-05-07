@@ -131,6 +131,101 @@ pub struct SettingsStateDto {
     pub locale: String,
     pub notes: String,
     pub shadow_mode_enabled: bool,
+    pub raw_yaml: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppConfigDto {
+    pub server: ServerConfigDto,
+    pub database: DatabaseConfigDto,
+    pub identity: IdentityConfigDto,
+    pub security: SecurityConfigDto,
+    pub ai: AiConfigDto,
+    pub observability: ObservabilityConfigDto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerConfigDto {
+    pub listen_addr: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseConfigDto {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentityConfigDto {
+    pub mode: String,
+    pub provider_hint: String,
+    pub trusted_headers: TrustedHeadersConfigDto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrustedHeadersConfigDto {
+    pub authenticated: String,
+    pub subject: String,
+    pub email: String,
+    pub groups: String,
+    pub provider: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityConfigDto {
+    pub admin_shadow_prefixes: Vec<String>,
+    pub login_ip_limit: RateLimitConfigDto,
+    pub login_user_limit: RateLimitConfigDto,
+    pub console_admin_groups: Vec<String>,
+    pub protected_hosts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateLimitConfigDto {
+    pub rule_id: String,
+    pub path_prefix: String,
+    pub rps: u32,
+    pub burst: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiConfigDto {
+    pub enabled: bool,
+    pub provider: String,
+    pub model: String,
+    pub api_key_env: String,
+    pub base_url: Option<String>,
+    pub timeout_ms: u64,
+    pub system_prompt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObservabilityConfigDto {
+    pub caddy_access_log: CaddyAccessLogConfigDto,
+    pub geoip: GeoIpConfigDto,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaddyAccessLogConfigDto {
+    pub enabled: bool,
+    pub path: String,
+    pub poll_interval_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeoIpConfigDto {
+    pub enabled: bool,
+    pub database_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -199,7 +294,9 @@ pub struct SettingsOverviewDto {
     pub metrics: Vec<MetricDto>,
     pub filters: Vec<FilterChipDto>,
     pub settings: SettingsStateDto,
+    pub config: AppConfigDto,
     pub details: Vec<DetailItemDto>,
+    pub config_details: Vec<DetailItemDto>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

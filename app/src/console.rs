@@ -6,7 +6,10 @@ use ingress_api::{
     ActionItemDto, ApprovalItemDto, ApprovalsOverviewDto, ConsoleResponse, DashboardMetricDto,
     DashboardOverviewDto, DetailItemDto, EventItemDto, EventsOverviewDto, ExplainEventRequest,
     FilterChipDto, MetricDto, RuleRowDto, RulesOverviewDto, SettingsOverviewDto,
-    SettingsStateDto, SuggestionItemDto, SuggestionsOverviewDto, AiExplanationDto,
+    SettingsStateDto, SuggestionItemDto, SuggestionsOverviewDto, AiExplanationDto, AppConfigDto,
+    ServerConfigDto, DatabaseConfigDto, IdentityConfigDto, TrustedHeadersConfigDto,
+    SecurityConfigDto, RateLimitConfigDto, AiConfigDto, ObservabilityConfigDto,
+    CaddyAccessLogConfigDto, GeoIpConfigDto,
 };
 use ingress_ai::{AiEventContext, ExplainEventInput, SuggestionGenerationInput};
 use std::{
@@ -21,6 +24,7 @@ pub struct ConsoleSettingsState {
     pub locale: String,
     pub notes: String,
     pub shadow_mode_enabled: bool,
+    pub raw_yaml: String,
     pub updated_by: Option<String>,
     pub updated_at: DateTime<Utc>,
 }
@@ -36,6 +40,7 @@ impl ConsoleSettingsState {
                 config.identity.mode, config.identity.provider_hint
             ),
             shadow_mode_enabled: true,
+            raw_yaml: crate::config::AppConfig::read_raw().unwrap_or_default(),
             updated_by: None,
             updated_at: Utc::now(),
         }
@@ -48,6 +53,7 @@ impl ConsoleSettingsState {
             locale: self.locale.clone(),
             notes: self.notes.clone(),
             shadow_mode_enabled: self.shadow_mode_enabled,
+            raw_yaml: self.raw_yaml.clone(),
         }
     }
 }
@@ -498,11 +504,16 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
     }
 
     async fn settings(&self) -> Result<ConsoleResponse<SettingsOverviewDto>> {
-        let settings = self
+        let mut settings = self
             .runtime_settings
             .read()
             .expect("runtime settings lock poisoned")
             .clone();
+        if let Ok(raw_yaml) = crate::config::AppConfig::read_raw() {
+            settings.raw_yaml = raw_yaml;
+        }
+        let config_snapshot = crate::config::AppConfig::parse_raw(&settings.raw_yaml)
+            .unwrap_or_else(|_| self.config.as_ref().clone());
         Ok(ConsoleResponse {
             data: SettingsOverviewDto {
                 metrics: vec![
@@ -516,10 +527,11 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                     filter("Data source: sql", "data:sql"),
                 ],
                 settings: settings.as_settings_dto(),
+                config: map_app_config(&config_snapshot),
                 details: vec![
                     detail(
                         "Identity preset",
-                        &self.config.identity.provider_hint,
+                        &config_snapshot.identity.provider_hint,
                         "Gatewarden trusts external identity context and maps it into the canonical subject model.",
                     ),
                     detail(
@@ -528,11 +540,12 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                             "{} / {} / {}",
                             settings.subject_header,
                             settings.email_header,
-                            self.config.identity.trusted_headers.groups
+                            config_snapshot.identity.trusted_headers.groups
                         ),
                         "Trusted headers are now loaded from persisted console settings and applied by the runtime adapter.",
                     ),
                 ],
+                config_details: build_config_snapshot(&config_snapshot),
             },
         })
     }
@@ -965,4 +978,116 @@ fn detail(label: &str, value: &str, description: &str) -> DetailItemDto {
         value: value.to_string(),
         description: description.to_string(),
     }
+}
+
+fn build_config_snapshot(config: &AppConfig) -> Vec<DetailItemDto> {
+    let protected_hosts = if config.security.protected_hosts.is_empty() {
+        "none".to_string()
+    } else {
+        config.security.protected_hosts.join(", ")
+    };
+    let admin_prefixes = if config.security.admin_shadow_prefixes.is_empty() {
+        "none".to_string()
+    } else {
+        config.security.admin_shadow_prefixes.join(", ")
+    };
+
+    vec![
+        detail("server.listen_addr", &config.server.listen_addr, "监听地址。"),
+        detail("database.url", &mask_database_url(&config.database.url), "当前运行中的数据库连接串，已脱敏。"),
+        detail("identity.mode", &config.identity.mode, "身份上下文接入模式。"),
+        detail("identity.provider_hint", &config.identity.provider_hint, "上游身份提供方提示。"),
+        detail("identity.trusted_headers.authenticated", &config.identity.trusted_headers.authenticated, "认证状态头。"),
+        detail("identity.trusted_headers.subject", &config.identity.trusted_headers.subject, "主体标识头。"),
+        detail("identity.trusted_headers.email", &config.identity.trusted_headers.email, "邮箱标识头。"),
+        detail("identity.trusted_headers.groups", &config.identity.trusted_headers.groups, "用户组头。"),
+        detail("identity.trusted_headers.provider", &config.identity.trusted_headers.provider, "上游 provider 头。"),
+        detail("security.admin_shadow_prefixes", &admin_prefixes, "管理面保护路径前缀。"),
+        detail("security.login_ip_limit", &format!("{} | rps={} | burst={}", config.security.login_ip_limit.path_prefix, config.security.login_ip_limit.rps, config.security.login_ip_limit.burst), "基于 IP 的登录限流规则。"),
+        detail("security.login_user_limit", &format!("{} | rps={} | burst={}", config.security.login_user_limit.path_prefix, config.security.login_user_limit.rps, config.security.login_user_limit.burst), "基于主体的登录限流规则。"),
+        detail("security.console_admin_groups", &config.security.console_admin_groups.join(", "), "允许访问控制台的管理组。"),
+        detail("security.protected_hosts", &protected_hosts, "默认受 Gatewarden 保护的域名。"),
+        detail("ai.enabled", if config.ai.enabled { "true" } else { "false" }, "是否启用 AI 建议与事件解释。"),
+        detail("ai.provider", &config.ai.provider, "AI provider。"),
+        detail("ai.model", &config.ai.model, "当前 AI 模型。"),
+        detail("ai.api_key_env", &config.ai.api_key_env, "读取 AI API key 的环境变量名。"),
+        detail("ai.base_url", config.ai.base_url.as_deref().unwrap_or("default"), "OpenAI-compatible endpoint base URL。"),
+        detail("ai.timeout_ms", &config.ai.timeout_ms.to_string(), "AI 请求超时时间。"),
+        detail("observability.caddy_access_log.enabled", if config.observability.caddy_access_log.enabled { "true" } else { "false" }, "是否读取 Caddy access log。"),
+        detail("observability.caddy_access_log.path", &config.observability.caddy_access_log.path, "Caddy access log 路径。"),
+        detail("observability.caddy_access_log.poll_interval_ms", &config.observability.caddy_access_log.poll_interval_ms.to_string(), "Caddy access log 轮询间隔。"),
+        detail("observability.geoip.enabled", if config.observability.geoip.enabled { "true" } else { "false" }, "是否启用 MMDB GeoIP。"),
+        detail("observability.geoip.database_path", &config.observability.geoip.database_path, "MMDB 路径。"),
+    ]
+}
+
+fn map_app_config(config: &AppConfig) -> AppConfigDto {
+    AppConfigDto {
+        server: ServerConfigDto {
+            listen_addr: config.server.listen_addr.clone(),
+        },
+        database: DatabaseConfigDto {
+            url: config.database.url.clone(),
+        },
+        identity: IdentityConfigDto {
+            mode: config.identity.mode.clone(),
+            provider_hint: config.identity.provider_hint.clone(),
+            trusted_headers: TrustedHeadersConfigDto {
+                authenticated: config.identity.trusted_headers.authenticated.clone(),
+                subject: config.identity.trusted_headers.subject.clone(),
+                email: config.identity.trusted_headers.email.clone(),
+                groups: config.identity.trusted_headers.groups.clone(),
+                provider: config.identity.trusted_headers.provider.clone(),
+            },
+        },
+        security: SecurityConfigDto {
+            admin_shadow_prefixes: config.security.admin_shadow_prefixes.clone(),
+            login_ip_limit: RateLimitConfigDto {
+                rule_id: config.security.login_ip_limit.rule_id.clone(),
+                path_prefix: config.security.login_ip_limit.path_prefix.clone(),
+                rps: config.security.login_ip_limit.rps,
+                burst: config.security.login_ip_limit.burst,
+            },
+            login_user_limit: RateLimitConfigDto {
+                rule_id: config.security.login_user_limit.rule_id.clone(),
+                path_prefix: config.security.login_user_limit.path_prefix.clone(),
+                rps: config.security.login_user_limit.rps,
+                burst: config.security.login_user_limit.burst,
+            },
+            console_admin_groups: config.security.console_admin_groups.clone(),
+            protected_hosts: config.security.protected_hosts.clone(),
+        },
+        ai: AiConfigDto {
+            enabled: config.ai.enabled,
+            provider: config.ai.provider.clone(),
+            model: config.ai.model.clone(),
+            api_key_env: config.ai.api_key_env.clone(),
+            base_url: config.ai.base_url.clone(),
+            timeout_ms: config.ai.timeout_ms,
+            system_prompt: config.ai.system_prompt.clone(),
+        },
+        observability: ObservabilityConfigDto {
+            caddy_access_log: CaddyAccessLogConfigDto {
+                enabled: config.observability.caddy_access_log.enabled,
+                path: config.observability.caddy_access_log.path.clone(),
+                poll_interval_ms: config.observability.caddy_access_log.poll_interval_ms,
+            },
+            geoip: GeoIpConfigDto {
+                enabled: config.observability.geoip.enabled,
+                database_path: config.observability.geoip.database_path.clone(),
+            },
+        },
+    }
+}
+
+fn mask_database_url(value: &str) -> String {
+    if let Some((prefix, tail)) = value.split_once("://") {
+        if let Some((credentials, rest)) = tail.split_once('@') {
+            if credentials.contains(':') {
+                let username = credentials.split(':').next().unwrap_or("user");
+                return format!("{prefix}://{username}:***@{rest}");
+            }
+        }
+    }
+    value.to_string()
 }

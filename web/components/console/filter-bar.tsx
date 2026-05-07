@@ -1,5 +1,6 @@
 "use client"
 
+import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +31,8 @@ export function FilterBar({
   onExtraAction,
   className,
 }: FilterBarProps) {
+  const { t } = useI18n()
+
   return (
     <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
       <div className="flex items-center gap-2 flex-wrap">
@@ -37,24 +40,23 @@ export function FilterBar({
           <Button
             key={filter.value}
             variant={filter.active ? "secondary" : "ghost"}
-            size="sm"
+            size="pill"
             onClick={() => onFilterChange?.(filter.value)}
-            className="h-8 text-xs"
           >
             {filter.label}
           </Button>
         ))}
         {filters.length > 0 && (
-          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onExtraAction}>
+          <Button variant="ghost" size="pill" onClick={onExtraAction}>
             <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
-            {extraActionLabel}
+            {extraActionLabel || t("common.moreFilters")}
           </Button>
         )}
       </div>
       <div className="relative w-full sm:w-64">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
-          placeholder={searchPlaceholder}
+          placeholder={searchPlaceholder || t("component.filter.searchPlaceholder")}
           onChange={(e) => onSearch?.(e.target.value)}
           className="h-8 pl-8 text-sm"
         />

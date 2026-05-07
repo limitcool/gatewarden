@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -64,10 +65,10 @@ interface AdvancedFilterProps {
   statusCodeOptions?: { label: string; value: string }[]
   statusCodeValue?: string
   onStatusCodeChange?: (value: string) => void
-  hostOptions?: { label: string; value: string }[]
+  hostOptions?: { label: string; value: string; status?: "protected" | "unprotected" | "unknown" }[]
   hostValue?: string
   onHostChange?: (value: string) => void
-  featuredHostOptions?: { label: string; value: string }[]
+  featuredHostOptions?: { label: string; value: string; status?: "protected" | "unprotected" | "unknown" }[]
   countryOptions?: { label: string; value: string }[]
   countryValue?: string
   onCountryChange?: (value: string) => void
@@ -90,35 +91,15 @@ export function AdvancedFilter({
   filters = [],
   onFilterChange,
   searchValue = "",
-  searchPlaceholder = "搜索 IP、规则、事件...",
+  searchPlaceholder = "",
   onSearch,
-  ipVersionOptions = [
-    { label: "全部", value: "all" },
-    { label: "IPv4", value: "ipv4" },
-    { label: "IPv6", value: "ipv6" },
-  ],
+  ipVersionOptions = [],
   ipVersionValue = "all",
   onIPVersionChange,
-  severityOptions = [
-    { label: "全部级别", value: "all" },
-    { label: "危险", value: "critical" },
-    { label: "告警", value: "warning" },
-    { label: "信息", value: "info" },
-    { label: "成功", value: "success" },
-  ],
+  severityOptions = [],
   severityValue = "all",
   onSeverityChange,
-  statusCodeOptions = [
-    { label: "全部状态", value: "all" },
-    { label: "2xx 成功", value: "2xx" },
-    { label: "4xx 客户端错误", value: "4xx" },
-    { label: "5xx 服务端错误", value: "5xx" },
-    { label: "404 未找到", value: "404" },
-    { label: "429 限流", value: "429" },
-    { label: "500 内部错误", value: "500" },
-    { label: "502 网关错误", value: "502" },
-    { label: "504 超时", value: "504" },
-  ],
+  statusCodeOptions = [],
   statusCodeValue = "all",
   onStatusCodeChange,
   hostOptions = [],
@@ -137,8 +118,37 @@ export function AdvancedFilter({
   onClearAllFilters,
   className,
 }: AdvancedFilterProps) {
+  const { locale, t } = useI18n()
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [localSearch, setLocalSearch] = useState(searchValue)
+
+  const defaultIpVersionOptions = [
+    { label: t("common.all"), value: "all" },
+    { label: "IPv4", value: "ipv4" },
+    { label: "IPv6", value: "ipv6" },
+  ]
+  const defaultSeverityOptions = [
+    { label: locale === "zh-CN" ? "全部级别" : "All severities", value: "all" },
+    { label: locale === "zh-CN" ? "危险" : "Critical", value: "critical" },
+    { label: locale === "zh-CN" ? "告警" : "Warning", value: "warning" },
+    { label: locale === "zh-CN" ? "信息" : "Info", value: "info" },
+    { label: locale === "zh-CN" ? "成功" : "Success", value: "success" },
+  ]
+  const defaultStatusCodeOptions = [
+    { label: locale === "zh-CN" ? "全部状态" : "All status codes", value: "all" },
+    { label: locale === "zh-CN" ? "2xx 成功" : "2xx Success", value: "2xx" },
+    { label: locale === "zh-CN" ? "4xx 客户端错误" : "4xx Client errors", value: "4xx" },
+    { label: locale === "zh-CN" ? "5xx 服务端错误" : "5xx Server errors", value: "5xx" },
+    { label: locale === "zh-CN" ? "404 未找到" : "404 Not found", value: "404" },
+    { label: locale === "zh-CN" ? "429 限流" : "429 Rate limited", value: "429" },
+    { label: locale === "zh-CN" ? "500 内部错误" : "500 Internal error", value: "500" },
+    { label: locale === "zh-CN" ? "502 网关错误" : "502 Gateway error", value: "502" },
+    { label: locale === "zh-CN" ? "504 超时" : "504 Timeout", value: "504" },
+  ]
+
+  const resolvedIpVersionOptions = ipVersionOptions.length > 0 ? ipVersionOptions : defaultIpVersionOptions
+  const resolvedSeverityOptions = severityOptions.length > 0 ? severityOptions : defaultSeverityOptions
+  const resolvedStatusCodeOptions = statusCodeOptions.length > 0 ? statusCodeOptions : defaultStatusCodeOptions
 
   const handleSearchChange = (value: string) => {
     setLocalSearch(value)
@@ -152,6 +162,19 @@ export function AdvancedFilter({
         [key]: checked,
       })
     }
+  }
+
+  const hostButtonClassName = (status?: "protected" | "unprotected" | "unknown", active?: boolean) => {
+    if (active) {
+      return "border-foreground bg-foreground text-background hover:bg-foreground"
+    }
+    if (status === "unprotected") {
+      return "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15"
+    }
+    if (status === "protected") {
+      return "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
+    }
+    return "border-border bg-background text-foreground hover:bg-accent"
   }
 
   return (
@@ -185,7 +208,7 @@ export function AdvancedFilter({
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={localSearch}
-              placeholder={searchPlaceholder}
+              placeholder={searchPlaceholder || t("component.filter.searchPlaceholder")}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="h-8 pl-8 pr-8 text-sm"
             />
@@ -206,25 +229,25 @@ export function AdvancedFilter({
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs">
                 <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
-                高级筛选
+                {t("component.filter.advanced")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80" align="end">
               <div className="space-y-4">
-                <div className="font-medium text-sm">高级筛选</div>
+                <div className="font-medium text-sm">{t("component.filter.advanced")}</div>
                 
                 {/* IP 版本 */}
                 <div className="space-y-2">
                   <Label className="text-xs flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5" />
-                    IP 版本
+                    {t("component.filter.ipVersion")}
                   </Label>
                   <Select onValueChange={onIPVersionChange} value={ipVersionValue}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="选择 IP 版本" />
+                      <SelectValue placeholder={t("component.filter.ipVersionPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {ipVersionOptions.map((opt) => (
+                      {resolvedIpVersionOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value} className="text-xs">
                           {opt.label}
                         </SelectItem>
@@ -237,14 +260,14 @@ export function AdvancedFilter({
                 <div className="space-y-2">
                   <Label className="text-xs flex items-center gap-1.5">
                     <Tag className="h-3.5 w-3.5" />
-                    严重程度
+                    {t("component.filter.severity")}
                   </Label>
                   <Select onValueChange={onSeverityChange} value={severityValue}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="选择严重程度" />
+                      <SelectValue placeholder={t("component.filter.severityPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {severityOptions.map((opt) => (
+                      {resolvedSeverityOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value} className="text-xs">
                           {opt.label}
                         </SelectItem>
@@ -257,14 +280,14 @@ export function AdvancedFilter({
                 <div className="space-y-2">
                   <Label className="text-xs flex items-center gap-1.5">
                     <CircleDashed className="h-3.5 w-3.5" />
-                    状态码
+                    {t("component.filter.statusCode")}
                   </Label>
                   <Select onValueChange={onStatusCodeChange} value={statusCodeValue}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="选择状态码范围" />
+                      <SelectValue placeholder={t("component.filter.statusCodePlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {statusCodeOptions.map((opt) => (
+                      {resolvedStatusCodeOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value} className="text-xs">
                           {opt.label}
                         </SelectItem>
@@ -278,17 +301,17 @@ export function AdvancedFilter({
                   <div className="space-y-2">
                     <Label className="text-xs flex items-center gap-1.5">
                       <Globe className="h-3.5 w-3.5" />
-                      访问域名
+                      {t("component.filter.host")}
                     </Label>
                     <Select onValueChange={onHostChange} value={hostValue}>
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="选择域名" />
+                        <SelectValue placeholder={t("component.filter.hostPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all" className="text-xs">全部域名</SelectItem>
+                        <SelectItem value="all" className="text-xs">{t("component.filter.allHosts")}</SelectItem>
                         {hostOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                            {opt.label}
+                            {opt.label}{opt.status === "unprotected" ? ` · ${t("common.unprotected")}` : opt.status === "protected" ? ` · ${t("common.protected")}` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -301,14 +324,14 @@ export function AdvancedFilter({
                   <div className="space-y-2">
                     <Label className="text-xs flex items-center gap-1.5">
                       <Globe className="h-3.5 w-3.5" />
-                      国家/地区
+                      {t("component.filter.country")}
                     </Label>
                     <Select onValueChange={onCountryChange} value={countryValue}>
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="选择国家/地区" />
+                        <SelectValue placeholder={t("component.filter.countryPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all" className="text-xs">全部</SelectItem>
+                        <SelectItem value="all" className="text-xs">{t("common.all")}</SelectItem>
                         {countryOptions.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value} className="text-xs">
                             {opt.label}
@@ -324,7 +347,7 @@ export function AdvancedFilter({
                   <div className="space-y-2">
                     <Label className="text-xs flex items-center gap-1.5">
                       <Shield className="h-3.5 w-3.5" />
-                      代理检测
+                      {t("component.filter.proxySignals")}
                     </Label>
                     <div className="grid grid-cols-2 gap-2">
                       <label className="flex items-center gap-2 text-xs cursor-pointer">
@@ -332,28 +355,28 @@ export function AdvancedFilter({
                           checked={proxyFilters.vpn}
                           onCheckedChange={(checked) => handleProxyChange("vpn", !!checked)}
                         />
-                        VPN
+                        {t("component.filter.vpn")}
                       </label>
                       <label className="flex items-center gap-2 text-xs cursor-pointer">
                         <Checkbox
                           checked={proxyFilters.proxy}
                           onCheckedChange={(checked) => handleProxyChange("proxy", !!checked)}
                         />
-                        代理
+                        {t("component.filter.proxy")}
                       </label>
                       <label className="flex items-center gap-2 text-xs cursor-pointer">
                         <Checkbox
                           checked={proxyFilters.tor}
                           onCheckedChange={(checked) => handleProxyChange("tor", !!checked)}
                         />
-                        Tor
+                        {t("component.filter.tor")}
                       </label>
                       <label className="flex items-center gap-2 text-xs cursor-pointer">
                         <Checkbox
                           checked={proxyFilters.datacenter}
                           onCheckedChange={(checked) => handleProxyChange("datacenter", !!checked)}
                         />
-                        数据中心
+                        {t("component.filter.datacenter")}
                       </label>
                     </div>
                   </div>
@@ -361,7 +384,7 @@ export function AdvancedFilter({
 
                 <div className="flex justify-end pt-2 border-t border-border">
                   <Button size="sm" className="h-7 text-xs" onClick={() => setAdvancedOpen(false)}>
-                    应用筛选
+                    {t("common.apply")}
                   </Button>
                 </div>
               </div>
@@ -385,24 +408,25 @@ export function AdvancedFilter({
 
       {featuredHostOptions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">域名:</span>
+          <span className="text-xs text-muted-foreground">{t("component.filter.featuredHosts")}</span>
           <Button
             variant={hostValue === "all" ? "secondary" : "ghost"}
             size="sm"
             className="h-7 text-xs"
             onClick={() => onHostChange?.("all")}
           >
-            全部
+            {t("common.all")}
           </Button>
           {featuredHostOptions.map((host) => (
             <Button
               key={host.value}
-              variant={hostValue === host.value ? "secondary" : "ghost"}
               size="sm"
-              className="h-7 text-xs"
+              variant="outline"
+              className={cn("h-7 text-xs", hostButtonClassName(host.status, hostValue === host.value))}
               onClick={() => onHostChange?.(host.value)}
             >
               {host.label}
+              {host.status === "unprotected" && <span className="ml-1 text-[10px]">{t("common.unprotected")}</span>}
             </Button>
           ))}
         </div>
@@ -411,7 +435,7 @@ export function AdvancedFilter({
       {/* 活跃筛选标签 */}
       {activeFilters.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground">当前筛选:</span>
+          <span className="text-xs text-muted-foreground">{t("common.currentFilters")}</span>
           {activeFilters.map((filter) => (
             <Badge
               key={filter.key}
@@ -430,7 +454,7 @@ export function AdvancedFilter({
               className="h-6 text-xs text-muted-foreground"
               onClick={onClearAllFilters}
             >
-              清除全部
+              {t("common.clearAll")}
             </Button>
           )}
         </div>

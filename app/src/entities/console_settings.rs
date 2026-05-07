@@ -10,6 +10,7 @@ pub struct Model {
     pub locale: String,
     pub notes: String,
     pub shadow_mode_enabled: bool,
+    pub raw_yaml: String,
     pub updated_at: DateTimeUtc,
     pub updated_by: Option<String>,
 }

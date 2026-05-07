@@ -98,6 +98,79 @@ export interface SettingsStateDto {
   locale: string
   notes: string
   shadowModeEnabled: boolean
+  rawYaml: string
+}
+
+export interface AppConfigDto {
+  server: ServerConfigDto
+  database: DatabaseConfigDto
+  identity: IdentityConfigDto
+  security: SecurityConfigDto
+  ai: AiConfigDto
+  observability: ObservabilityConfigDto
+}
+
+export interface ServerConfigDto {
+  listenAddr: string
+}
+
+export interface DatabaseConfigDto {
+  url: string
+}
+
+export interface IdentityConfigDto {
+  mode: string
+  providerHint: string
+  trustedHeaders: TrustedHeadersConfigDto
+}
+
+export interface TrustedHeadersConfigDto {
+  authenticated: string
+  subject: string
+  email: string
+  groups: string
+  provider: string
+}
+
+export interface SecurityConfigDto {
+  adminShadowPrefixes: string[]
+  loginIpLimit: RateLimitConfigDto
+  loginUserLimit: RateLimitConfigDto
+  consoleAdminGroups: string[]
+  protectedHosts: string[]
+}
+
+export interface RateLimitConfigDto {
+  ruleId: string
+  pathPrefix: string
+  rps: number
+  burst: number
+}
+
+export interface AiConfigDto {
+  enabled: boolean
+  provider: string
+  model: string
+  apiKeyEnv: string
+  baseUrl?: string | null
+  timeoutMs: number
+  systemPrompt: string
+}
+
+export interface ObservabilityConfigDto {
+  caddyAccessLog: CaddyAccessLogConfigDto
+  geoip: GeoIpConfigDto
+}
+
+export interface CaddyAccessLogConfigDto {
+  enabled: boolean
+  path: string
+  pollIntervalMs: number
+}
+
+export interface GeoIpConfigDto {
+  enabled: boolean
+  databasePath: string
 }
 
 export interface DashboardMetricDto {
@@ -150,5 +223,7 @@ export interface SettingsOverviewDto {
   metrics: MetricDto[]
   filters: FilterChipDto[]
   settings: SettingsStateDto
+  config: AppConfigDto
   details: DetailItemDto[]
+  configDetails: DetailItemDto[]
 }

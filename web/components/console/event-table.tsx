@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -71,26 +72,22 @@ interface EventTableProps {
   selectedEventId?: string
 }
 
-const severityConfig: Record<Severity, { icon: typeof AlertCircle; className: string; label: string }> = {
+const severityConfig: Record<Severity, { icon: typeof AlertCircle; className: string }> = {
   critical: {
     icon: AlertCircle,
     className: "text-status-error",
-    label: "危险",
   },
   warning: {
     icon: AlertTriangle,
     className: "text-status-warning",
-    label: "告警",
   },
   info: {
     icon: Info,
     className: "text-status-info",
-    label: "信息",
   },
   success: {
     icon: CheckCircle,
     className: "text-status-active",
-    label: "通过",
   },
 }
 
@@ -102,31 +99,35 @@ const methodColors: Record<string, string> = {
   DELETE: "text-status-error",
 }
 
-function hostStatusConfig(status?: EventRow["hostStatus"]) {
+function hostStatusConfig(status: EventRow["hostStatus"] | undefined, protectedLabel: string, unprotectedLabel: string, pendingLabel: string) {
   switch (status) {
     case "protected":
       return {
-        label: "已接入",
+        label: protectedLabel,
         className: "border-status-active/30 bg-status-active/10 text-status-active",
       }
     case "unprotected":
       return {
-        label: "未接入",
+        label: unprotectedLabel,
         className: "border-status-error/30 bg-status-error/10 text-status-error",
       }
     default:
       return {
-        label: "待确认",
+        label: pendingLabel,
         className: "border-border bg-muted text-muted-foreground",
       }
   }
 }
 
 export function EventTable({ events, className, onRowClick, selectedEventId }: EventTableProps) {
+  const { t } = useI18n()
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [logEvent, setLogEvent] = useState<EventRow | null>(null)
   const [aiExplanation, setAiExplanation] = useState<AiExplanationDto | null>(null)
   const [isExplaining, setIsExplaining] = useState(false)
+  const notCaptured = t("common.notCaptured")
+  const hostStatus = (status?: EventRow["hostStatus"]) =>
+    hostStatusConfig(status, t("common.protected"), t("common.unprotected"), t("common.pendingCheck"))
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
@@ -159,7 +160,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
       })
       setAiExplanation(response.data)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "AI 解释失败")
+      toast.error(error instanceof Error ? error.message : t("component.eventTable.aiError"))
     } finally {
       setIsExplaining(false)
     }
@@ -170,12 +171,12 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
       {/* Header */}
       <div className="grid grid-cols-[auto_minmax(0,1.2fr)_80px_88px_160px_120px_80px] gap-4 px-4 py-3 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
         <div className="w-6"></div>
-        <div>请求</div>
-        <div>状态</div>
-        <div>耗时</div>
-        <div>来源 IP</div>
-        <div>规则</div>
-        <div>时间</div>
+        <div>{t("component.eventTable.request")}</div>
+        <div>{t("component.eventTable.status")}</div>
+        <div>{t("component.eventTable.latency")}</div>
+        <div>{t("component.eventTable.sourceIp")}</div>
+        <div>{t("component.eventTable.rule")}</div>
+        <div>{t("component.eventTable.time")}</div>
       </div>
       
       {/* Body */}
@@ -223,10 +224,10 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                         <span
                           className={cn(
                             "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium",
-                            hostStatusConfig(event.hostStatus).className
+                            hostStatus(event.hostStatus).className
                           )}
                         >
-                          {hostStatusConfig(event.hostStatus).label}
+                          {hostStatus(event.hostStatus).label}
                         </span>
                       </div>
                     )}
@@ -263,7 +264,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                       {event.responseTime}ms
                     </span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">未采集</span>
+                    <span className="text-xs text-muted-foreground">{notCaptured}</span>
                   )}
                 </div>
 
@@ -271,12 +272,12 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                 <div className="flex items-center gap-1.5 min-w-0">
                   <code className={cn(
                     "font-mono text-xs truncate",
-                    event.ip === "未采集" && "text-muted-foreground",
+                    event.ip === notCaptured && "text-muted-foreground",
                     event.ipVersion === "IPv6" && "text-[10px]"
                   )}>
                     {event.ip}
                   </code>
-                  {event.ipVersion === "IPv6" && event.ip !== "未采集" && (
+                  {event.ipVersion === "IPv6" && event.ip !== notCaptured && (
                     <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">v6</Badge>
                   )}
                   {(event.isProxy || event.isVPN || event.isTor) && (
@@ -305,18 +306,18 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                     <div className="space-y-3">
                       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         <Globe className="h-3.5 w-3.5" />
-                        IP 详情
+                        {t("component.eventTable.ipDetails")}
                       </h4>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">IP 地址</span>
+                          <span className="text-xs text-muted-foreground">{t("component.eventTable.ipAddress")}</span>
                           <div className="flex items-center gap-1">
-                            <code className={cn("text-xs font-mono", event.ip === "未采集" && "text-muted-foreground")}>{event.ip}</code>
+                            <code className={cn("text-xs font-mono", event.ip === notCaptured && "text-muted-foreground")}>{event.ip}</code>
                             <Button 
                               variant="ghost" 
                               size="sm" 
                               className="h-5 w-5 p-0"
-                              disabled={event.ip === "未采集"}
+                              disabled={event.ip === notCaptured}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 copyToClipboard(event.ip)
@@ -327,12 +328,12 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">版本</span>
+                          <span className="text-xs text-muted-foreground">{t("component.eventTable.version")}</span>
                           <Badge variant="outline" className="text-[10px]">{event.ipVersion}</Badge>
                         </div>
                         {event.country && (
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">地理位置</span>
+                            <span className="text-xs text-muted-foreground">{t("component.eventTable.location")}</span>
                             <span className="text-xs flex items-center gap-1">
                               <MapPin className="h-3 w-3" />
                               {event.country}
@@ -343,7 +344,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                         )}
                         {event.timezone && (
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">时区</span>
+                            <span className="text-xs text-muted-foreground">{t("component.eventTable.timezone")}</span>
                             <span className="text-xs">{event.timezone}</span>
                           </div>
                         )}
@@ -354,7 +355,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                     <div className="space-y-3">
                       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         <Shield className="h-3.5 w-3.5" />
-                        代理检测
+                        {t("component.eventTable.proxySignals")}
                       </h4>
                       <div className="flex flex-wrap gap-1.5">
                         {event.isVPN && (
@@ -364,16 +365,16 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                           </Badge>
                         )}
                         {event.isProxy && (
-                          <Badge variant="secondary" className="text-[10px]">代理</Badge>
+                          <Badge variant="secondary" className="text-[10px]">{t("component.filter.proxy")}</Badge>
                         )}
                         {event.isTor && (
                           <Badge variant="destructive" className="text-[10px]">Tor</Badge>
                         )}
                         {event.isDatacenter && (
-                          <Badge variant="secondary" className="text-[10px]">数据中心</Badge>
+                          <Badge variant="secondary" className="text-[10px]">{t("component.filter.datacenter")}</Badge>
                         )}
                         {!event.isVPN && !event.isProxy && !event.isTor && !event.isDatacenter && (
-                          <span className="text-xs text-muted-foreground">无代理检测</span>
+                          <span className="text-xs text-muted-foreground">{t("component.eventTable.noProxySignals")}</span>
                         )}
                       </div>
                     </div>
@@ -382,44 +383,44 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                     <div className="space-y-3">
                       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         <Info className="h-3.5 w-3.5" />
-                        请求详情
+                        {t("component.eventTable.requestDetails")}
                       </h4>
                       <div className="space-y-2">
                         {event.requestId && (
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">请求 ID</span>
+                            <span className="text-xs text-muted-foreground">{t("component.eventTable.requestId")}</span>
                             <code className="text-[10px] font-mono">{event.requestId}</code>
                           </div>
                         )}
                         {event.responseTime !== undefined && (
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">响应时间</span>
+                            <span className="text-xs text-muted-foreground">{t("component.eventTable.responseTime")}</span>
                             <span className="text-xs">{event.responseTime}ms</span>
                           </div>
                         )}
                         {event.host && (
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">访问域名</span>
+                            <span className="text-xs text-muted-foreground">{t("component.eventTable.host")}</span>
                             <div className="flex items-center gap-2">
                               <code className="text-[10px] font-mono">{event.host}</code>
                               <span
                                 className={cn(
                                   "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium",
-                                  hostStatusConfig(event.hostStatus).className
+                                  hostStatus(event.hostStatus).className
                                 )}
                               >
-                                {hostStatusConfig(event.hostStatus).label}
+                                {hostStatus(event.hostStatus).label}
                               </span>
                             </div>
                           </div>
                         )}
                         <div>
-                          <span className="text-xs text-muted-foreground">完整路径</span>
+                          <span className="text-xs text-muted-foreground">{t("component.eventTable.fullPath")}</span>
                           <p className="mt-0.5 break-all font-mono text-[10px] text-foreground">{event.path}</p>
                         </div>
                         {event.subject && (
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">访问主体</span>
+                            <span className="text-xs text-muted-foreground">{t("component.eventTable.subject")}</span>
                             <code className="text-[10px] font-mono">{event.subject}</code>
                           </div>
                         )}
@@ -431,7 +432,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                         )}
                         {(event.asn || event.asnOrg || event.isp) && (
                           <div>
-                            <span className="text-xs text-muted-foreground">网络归属</span>
+                            <span className="text-xs text-muted-foreground">{t("component.eventTable.networkOwnership")}</span>
                             <p className="mt-0.5 break-all text-[10px] text-muted-foreground">
                               {[event.asn, event.asnOrg, event.isp].filter(Boolean).join(" · ")}
                             </p>
@@ -453,11 +454,11 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                       }}
                     >
                       <ExternalLink className="h-3 w-3 mr-1" />
-                      查看完整日志
+                      {t("component.eventTable.viewFullLog")}
                     </Button>
                     <Button variant="outline" size="sm" className="h-7 text-xs">
                       <Shield className="h-3 w-3 mr-1" />
-                      封禁此 IP
+                      {t("component.eventTable.blockIp")}
                     </Button>
                     <Button
                       variant="outline"
@@ -469,7 +470,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                       }}
                     >
                       <Info className="h-3 w-3 mr-1" />
-                      {isExplaining ? "分析中..." : "AI 解释"}
+                      {isExplaining ? t("component.eventTable.aiExplaining") : t("component.eventTable.aiExplain")}
                     </Button>
                   </div>
                 </div>
@@ -480,7 +481,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
         
         {events.length === 0 && (
           <div className="px-4 py-12 text-center text-sm text-muted-foreground">
-            暂无事件记录
+            {t("component.eventTable.empty")}
           </div>
         )}
       </div>
@@ -488,60 +489,60 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
       <Dialog open={logEvent !== null} onOpenChange={(open) => !open && setLogEvent(null)}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>完整请求日志</DialogTitle>
+            <DialogTitle>{t("component.eventTable.fullLogTitle")}</DialogTitle>
             <DialogDescription>
-              查看当前事件的完整请求上下文、关联状态和观测采集情况。
+              {t("component.eventTable.fullLogDescription")}
             </DialogDescription>
           </DialogHeader>
           {logEvent && (
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">访问域名</div>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.host")}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <div className="break-all font-mono text-sm">{logEvent.host ?? "未采集"}</div>
+                    <div className="break-all font-mono text-sm">{logEvent.host ?? notCaptured}</div>
                     {logEvent.host && (
                       <span
                         className={cn(
                           "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                          hostStatusConfig(logEvent.hostStatus).className
+                          hostStatus(logEvent.hostStatus).className
                         )}
                       >
-                        {hostStatusConfig(logEvent.hostStatus).label}
+                        {hostStatus(logEvent.hostStatus).label}
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">请求 ID</div>
-                  <div className="mt-1 break-all font-mono text-sm">{logEvent.requestId ?? "未采集"}</div>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.requestId")}</div>
+                  <div className="mt-1 break-all font-mono text-sm">{logEvent.requestId ?? notCaptured}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
-                  <div className="text-xs text-muted-foreground">完整路径</div>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.fullPath")}</div>
                   <div className="mt-1 break-all font-mono text-sm">{logEvent.path}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">来源 IP</div>
-                  <div className={cn("mt-1 break-all font-mono text-sm", logEvent.ip === "未采集" && "text-muted-foreground")}>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.sourceIp")}</div>
+                  <div className={cn("mt-1 break-all font-mono text-sm", logEvent.ip === notCaptured && "text-muted-foreground")}>
                     {logEvent.ip}
                   </div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="text-xs text-muted-foreground">状态 / 响应时间</div>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.statusAndLatency")}</div>
                   <div className="mt-1 text-sm">
-                    {logEvent.statusCode} / {logEvent.responseTime !== undefined ? `${logEvent.responseTime}ms` : "未采集"}
+                    {logEvent.statusCode} / {logEvent.responseTime !== undefined ? `${logEvent.responseTime}ms` : notCaptured}
                   </div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
                   <div className="text-xs text-muted-foreground">User-Agent</div>
-                  <div className="mt-1 break-all text-sm">{logEvent.userAgent ?? "未采集"}</div>
+                  <div className="mt-1 break-all text-sm">{logEvent.userAgent ?? notCaptured}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
-                  <div className="text-xs text-muted-foreground">GeoIP / 观测状态</div>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.geoStatus")}</div>
                   <div className="mt-1 text-sm text-muted-foreground">
                     {logEvent.country || logEvent.city
                       ? [logEvent.country, logEvent.region, logEvent.city].filter(Boolean).join(" / ")
-                      : "当前事件还没有匹配到公网 GeoIP 或观测日志。"}
+                      : t("component.eventTable.geoPending")}
                   </div>
                 </div>
               </div>
@@ -553,29 +554,29 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
       <Dialog open={aiExplanation !== null} onOpenChange={(open) => !open && setAiExplanation(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{aiExplanation?.title ?? "AI 解释"}</DialogTitle>
+            <DialogTitle>{aiExplanation?.title ?? t("component.eventTable.aiExplain")}</DialogTitle>
             <DialogDescription>
-              {aiExplanation?.model ? `模型来源: ${aiExplanation.model}` : "模型解释"}
+              {aiExplanation?.model ? `${t("component.eventTable.modelSource")}: ${aiExplanation.model}` : t("component.eventTable.modelExplanation")}
             </DialogDescription>
           </DialogHeader>
           {aiExplanation && (
             <div className="space-y-4">
               <div className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="text-xs text-muted-foreground">摘要</div>
+                <div className="text-xs text-muted-foreground">{t("component.eventTable.summary")}</div>
                 <p className="mt-1 text-sm leading-relaxed text-foreground">{aiExplanation.summary}</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-border bg-muted/20 p-4">
-                  <div className="text-xs text-muted-foreground">风险等级</div>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.risk")}</div>
                   <div className="mt-1 text-sm text-foreground">{aiExplanation.risk}</div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-4">
-                  <div className="text-xs text-muted-foreground">置信度</div>
+                  <div className="text-xs text-muted-foreground">{t("component.eventTable.confidence")}</div>
                   <div className="mt-1 text-sm text-foreground">{aiExplanation.confidence}</div>
                 </div>
               </div>
               <div className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="text-xs text-muted-foreground">证据</div>
+                <div className="text-xs text-muted-foreground">{t("component.eventTable.evidence")}</div>
                 <div className="mt-2 space-y-2">
                   {aiExplanation.evidence.map((item, index) => (
                     <p key={`${item}-${index}`} className="text-sm text-foreground">{item}</p>
@@ -583,7 +584,7 @@ export function EventTable({ events, className, onRowClick, selectedEventId }: E
                 </div>
               </div>
               <div className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="text-xs text-muted-foreground">建议动作</div>
+                <div className="text-xs text-muted-foreground">{t("component.eventTable.nextSteps")}</div>
                 <div className="mt-2 space-y-2">
                   {aiExplanation.nextSteps.map((item, index) => (
                     <p key={`${item}-${index}`} className="text-sm text-foreground">{item}</p>

@@ -15,10 +15,12 @@ import { useRouter } from "next/navigation"
 import { getSuggestionsOverview, normalizeDetails, normalizeFilters, normalizeMetrics, normalizeSuggestions, refreshSuggestionsOverview } from "@/lib/console-api"
 import type { SuggestionsOverviewDto } from "@/lib/console-types"
 import { Button } from "@/components/ui/button"
+import { useI18n } from "@/components/i18n-provider"
 
 const iconMap = [Lightbulb, CheckCircle, TrendingUp]
 
 export default function SuggestionsPage() {
+  const { t, locale } = useI18n()
   const [activeFilter, setActiveFilter] = useState("all")
   const [searchValue, setSearchValue] = useState("")
   const [data, setData] = useState<SuggestionsOverviewDto | null>(null)
@@ -31,25 +33,26 @@ export default function SuggestionsPage() {
         const response = await getSuggestionsOverview()
         setData(response.data)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "加载建议失败")
+        toast.error(error instanceof Error ? error.message : t("page.suggestions.toast.loadError"))
       }
     }
 
     void loadSuggestions()
   }, [])
 
-  const filters = useMemo(() => normalizeFilters(data?.filters ?? []).map((f) => ({
+  const filters = useMemo(() => normalizeFilters(data?.filters ?? [], locale).map((f) => ({
     ...f,
     active: f.value === activeFilter,
-  })), [data?.filters, activeFilter])
+  })), [data?.filters, activeFilter, locale])
 
   const suggestions = useMemo(() => {
-    return normalizeSuggestions(data?.suggestions ?? []).filter((item) => {
+    return normalizeSuggestions(data?.suggestions ?? [], locale).filter((item) => {
+      const combinedText = `${item.title} ${item.summary} ${item.badge}`.toLowerCase()
       const matchesFilter =
         activeFilter === "all" ||
-        (activeFilter === "high" && item.badge.includes("证据")) ||
-        (activeFilter === "performance" && item.title.includes("限流")) ||
-        (activeFilter === "security" && (item.title.includes("管理面") || item.title.includes("鉴权"))) ||
+        (activeFilter === "high" && (combinedText.includes("证据") || combinedText.includes("evidence"))) ||
+        (activeFilter === "performance" && (combinedText.includes("限流") || combinedText.includes("rate limit"))) ||
+        (activeFilter === "security" && (combinedText.includes("管理面") || combinedText.includes("鉴权") || combinedText.includes("admin") || combinedText.includes("auth"))) ||
         item.badge.toLowerCase().includes(activeFilter.toLowerCase())
       const keyword = searchValue.trim().toLowerCase()
       const matchesSearch =
@@ -58,10 +61,10 @@ export default function SuggestionsPage() {
         item.summary.toLowerCase().includes(keyword)
       return matchesFilter && matchesSearch
     })
-  }, [data?.suggestions, activeFilter, searchValue])
+  }, [data?.suggestions, activeFilter, searchValue, locale])
 
   const handlePrimaryAction = (suggestion: { primaryAction: string }) => {
-    if (suggestion.primaryAction.includes("审批")) {
+    if (suggestion.primaryAction.includes("审批") || suggestion.primaryAction.toLowerCase().includes("approval")) {
       router.push("/dashboard/approvals")
       return
     }
@@ -69,7 +72,7 @@ export default function SuggestionsPage() {
   }
 
   const handleSecondaryAction = (suggestion: { secondaryAction: string }) => {
-    toast.message(`已记录：${suggestion.secondaryAction}`)
+    toast.message(t("page.suggestions.toast.recorded", { action: suggestion.secondaryAction }))
   }
 
   const handleRefreshSuggestions = async () => {
@@ -77,9 +80,9 @@ export default function SuggestionsPage() {
     try {
       const response = await refreshSuggestionsOverview()
       setData(response.data)
-      toast.success("AI 建议已刷新")
+      toast.success(t("page.suggestions.toast.refreshSuccess"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "刷新 AI 建议失败")
+      toast.error(error instanceof Error ? error.message : t("page.suggestions.toast.refreshError"))
     } finally {
       setIsRefreshing(false)
     }
@@ -88,8 +91,8 @@ export default function SuggestionsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="智能建议"
-        description="基于 AI 分析的策略优化建议"
+        title={t("page.suggestions.title")}
+        description={t("page.suggestions.description")}
         action={(
           <div className="flex items-center gap-2">
             {data?.aiEnabled && data?.aiProvider && data?.aiModel ? (
@@ -98,14 +101,14 @@ export default function SuggestionsPage() {
               </div>
             ) : null}
             <Button size="sm" onClick={() => void handleRefreshSuggestions()} disabled={isRefreshing}>
-              {isRefreshing ? "分析中..." : "刷新 AI 建议"}
+              {isRefreshing ? t("page.suggestions.refreshing") : t("page.suggestions.refresh")}
             </Button>
           </div>
         )}
       />
 
       <MetricsGrid columns={3}>
-        {normalizeMetrics(data?.metrics ?? []).map((metric, index) => (
+        {normalizeMetrics(data?.metrics ?? [], locale).map((metric, index) => (
           <MetricCard
             key={metric.label}
             label={metric.label}
@@ -119,24 +122,24 @@ export default function SuggestionsPage() {
       <FilterBar
         filters={filters}
         onFilterChange={setActiveFilter}
-        searchPlaceholder="搜索建议..."
+        searchPlaceholder={t("page.suggestions.search")}
         onSearch={setSearchValue}
-        onExtraAction={() => toast.message("建议页已支持标签和关键字过滤。")}
+        onExtraAction={() => toast.message(t("page.suggestions.toast.filterHelp"))}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <SuggestionCard
             suggestions={suggestions}
-            title="优化建议"
+            title={t("page.suggestions.title")}
             onPrimaryAction={handlePrimaryAction}
             onSecondaryAction={handleSecondaryAction}
           />
         </div>
         <div>
           <DetailListCard
-            details={normalizeDetails(data?.details ?? [])}
-            title="建议详情"
+            details={normalizeDetails(data?.details ?? [], locale)}
+            title={t("page.suggestions.details")}
           />
         </div>
       </div>

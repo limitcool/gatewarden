@@ -14,47 +14,49 @@ import {
   Menu,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useI18n } from "@/components/i18n-provider"
 
 interface AppSidebarProps {
   collapsed?: boolean
   onToggle?: () => void
 }
 
-const navigation = [
-  {
-    name: "概览",
-    href: "/dashboard/default",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "事件流",
-    href: "/dashboard/events",
-    icon: Activity,
-  },
-  {
-    name: "策略规则",
-    href: "/dashboard/rules",
-    icon: Shield,
-  },
-  {
-    name: "智能建议",
-    href: "/dashboard/suggestions",
-    icon: Lightbulb,
-  },
-  {
-    name: "审批队列",
-    href: "/dashboard/approvals",
-    icon: CheckCircle,
-  },
-  {
-    name: "系统设置",
-    href: "/dashboard/settings",
-    icon: Settings,
-  },
-]
-
 export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
   const pathname = usePathname()
+  const { t } = useI18n()
+
+  const navigation = [
+    {
+      name: t("nav.overview"),
+      href: "/dashboard/default",
+      icon: LayoutDashboard,
+    },
+    {
+      name: t("nav.events"),
+      href: "/dashboard/events",
+      icon: Activity,
+    },
+    {
+      name: t("nav.rules"),
+      href: "/dashboard/rules",
+      icon: Shield,
+    },
+    {
+      name: t("nav.suggestions"),
+      href: "/dashboard/suggestions",
+      icon: Lightbulb,
+    },
+    {
+      name: t("nav.approvals"),
+      href: "/dashboard/approvals",
+      icon: CheckCircle,
+    },
+    {
+      name: t("nav.settings"),
+      href: "/dashboard/settings",
+      icon: Settings,
+    },
+  ]
 
   return (
     <aside
@@ -123,7 +125,7 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
           ) : (
             <>
               <ChevronLeft className="h-4 w-4 mr-2" />
-              <span className="text-xs">收起侧栏</span>
+              <span className="text-xs">{t("shell.collapse")}</span>
             </>
           )}
         </Button>

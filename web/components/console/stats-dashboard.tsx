@@ -1,5 +1,6 @@
 "use client"
 
+import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import {
   AreaChart,
@@ -66,11 +67,12 @@ interface RequestTrendChartProps {
 }
 
 export function RequestTrendChart({ data, className }: RequestTrendChartProps) {
+  const { t } = useI18n()
   return (
     <ChartCard
-      title="请求趋势"
-      subtitle="过去 24 小时"
-      trend={{ value: 12, label: "较昨日" }}
+      title={t("component.chart.requestTrend")}
+      subtitle={t("component.chart.requestTrendSubtitle")}
+      trend={{ value: 12, label: t("component.chart.vsYesterday") }}
       className={className}
     >
       <div className="h-[200px]">
@@ -110,7 +112,7 @@ export function RequestTrendChart({ data, className }: RequestTrendChartProps) {
             <Area 
               type="monotone" 
               dataKey="requests" 
-              name="总请求"
+              name={t("component.chart.totalRequests")}
               stroke="hsl(var(--primary))" 
               fill="url(#colorRequests)" 
               strokeWidth={2}
@@ -118,7 +120,7 @@ export function RequestTrendChart({ data, className }: RequestTrendChartProps) {
             <Area 
               type="monotone" 
               dataKey="blocked" 
-              name="已阻塞"
+              name={t("component.chart.blocked")}
               stroke="hsl(var(--destructive))" 
               fill="url(#colorBlocked)"
               strokeWidth={2}
@@ -137,10 +139,11 @@ interface GeoDistributionChartProps {
 }
 
 export function GeoDistributionChart({ data, className }: GeoDistributionChartProps) {
+  const { t } = useI18n()
   return (
     <ChartCard
-      title="地理分布"
-      subtitle="按国家/地区"
+      title={t("component.chart.geoDistribution")}
+      subtitle={t("component.chart.geoDistributionSubtitle")}
       className={className}
     >
       <div className="h-[200px]">
@@ -170,8 +173,8 @@ export function GeoDistributionChart({ data, className }: GeoDistributionChartPr
                 fontSize: "12px"
               }}
             />
-            <Bar dataKey="requests" name="总请求" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-            <Bar dataKey="blocked" name="已阻塞" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="requests" name={t("component.chart.totalRequests")} fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="blocked" name={t("component.chart.blocked")} fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -186,10 +189,11 @@ interface EventCategoryChartProps {
 }
 
 export function EventCategoryChart({ data, className }: EventCategoryChartProps) {
+  const { t } = useI18n()
   return (
     <ChartCard
-      title="事件分类"
-      subtitle="按类型分布"
+      title={t("component.chart.eventCategories")}
+      subtitle={t("component.chart.eventCategoriesSubtitle")}
       className={className}
     >
       <div className="h-[200px] flex items-center">
@@ -240,13 +244,14 @@ interface IPVersionChartProps {
 }
 
 export function IPVersionChart({ ipv4, ipv6, className }: IPVersionChartProps) {
+  const { t } = useI18n()
   const total = ipv4 + ipv6
-  const ipv4Percent = Math.round((ipv4 / total) * 100)
-  const ipv6Percent = 100 - ipv4Percent
+  const ipv4Percent = total > 0 ? Math.round((ipv4 / total) * 100) : 0
+  const ipv6Percent = total > 0 ? 100 - ipv4Percent : 0
 
   return (
     <ChartCard
-      title="IP 版本分布"
+      title={t("component.chart.ipVersion")}
       subtitle="IPv4 vs IPv6"
       className={className}
     >
@@ -281,11 +286,11 @@ export function IPVersionChart({ ipv4, ipv6, className }: IPVersionChartProps) {
         </div>
         <div className="pt-2 border-t border-border grid grid-cols-2 gap-4 text-sm">
           <div>
-            <div className="text-xs text-muted-foreground">IPv4 请求</div>
+            <div className="text-xs text-muted-foreground">{t("component.chart.ipv4Requests")}</div>
             <div className="font-medium">{ipv4.toLocaleString()}</div>
           </div>
           <div>
-            <div className="text-xs text-muted-foreground">IPv6 请求</div>
+            <div className="text-xs text-muted-foreground">{t("component.chart.ipv6Requests")}</div>
             <div className="font-medium">{ipv6.toLocaleString()}</div>
           </div>
         </div>
@@ -301,10 +306,11 @@ interface RealtimeTrafficChartProps {
 }
 
 export function RealtimeTrafficChart({ data, className }: RealtimeTrafficChartProps) {
+  const { t } = useI18n()
   return (
     <ChartCard
-      title="实时流量"
-      subtitle="每秒请求数 (RPS)"
+      title={t("component.chart.realtimeTraffic")}
+      subtitle={t("component.chart.realtimeTrafficSubtitle")}
       className={className}
     >
       <div className="h-[120px]">
@@ -353,10 +359,11 @@ interface TopAttackersProps {
 }
 
 export function TopAttackersList({ data, className, onIPClick }: TopAttackersProps) {
+  const { t } = useI18n()
   return (
     <ChartCard
-      title="高风险 IP"
-      subtitle="按阻塞数排序"
+      title={t("component.chart.topAttackers")}
+      subtitle={t("component.chart.topAttackersSubtitle")}
       className={className}
     >
       <div className="space-y-2 max-h-[200px] overflow-y-auto">
@@ -383,7 +390,7 @@ export function TopAttackersList({ data, className, onIPClick }: TopAttackersPro
             </div>
             <div className="text-right">
               <div className="text-sm font-medium text-destructive">{item.blocked.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">已阻塞</div>
+              <div className="text-xs text-muted-foreground">{t("component.chart.blocked")}</div>
             </div>
           </div>
         ))}

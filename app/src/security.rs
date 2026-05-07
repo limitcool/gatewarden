@@ -188,6 +188,7 @@ impl Default for IngressPolicy {
                 locale: "en".to_string(),
                 notes: String::new(),
                 shadow_mode_enabled: true,
+                raw_yaml: String::new(),
                 updated_by: None,
                 updated_at: Utc::now(),
             })),

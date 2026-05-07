@@ -1,5 +1,6 @@
 "use client"
 
+import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 
 interface DetailItem {
@@ -19,6 +20,8 @@ export function DetailListCard({
   title,
   className,
 }: DetailListCardProps) {
+  const { t } = useI18n()
+
   return (
     <div className={cn("rounded-lg border border-border bg-card", className)}>
       {title && (
@@ -42,7 +45,7 @@ export function DetailListCard({
         ))}
         {details.length === 0 && (
           <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-            暂无详情
+            {t("component.detail.empty")}
           </div>
         )}
       </div>

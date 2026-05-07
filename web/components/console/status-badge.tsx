@@ -1,5 +1,7 @@
 "use client"
 
+import { Badge } from "@/components/ui/badge"
+import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 
 export type StatusType = "active" | "review" | "shadow" | "blocked" | "info" | "advisory"
@@ -9,45 +11,47 @@ interface StatusBadgeProps {
   className?: string
 }
 
-const statusConfig: Record<StatusType, { label: string; className: string }> = {
+const statusConfig: Record<StatusType, { labelKey: string; className: string }> = {
   active: {
-    label: "生效中",
+    labelKey: "component.status.active",
     className: "bg-status-active/15 text-status-active border-status-active/20",
   },
   review: {
-    label: "待审核",
+    labelKey: "component.status.review",
     className: "bg-status-warning/15 text-status-warning border-status-warning/20",
   },
   shadow: {
-    label: "影子模式",
+    labelKey: "component.status.shadow",
     className: "bg-status-warning/15 text-status-warning border-status-warning/20",
   },
   blocked: {
-    label: "阻塞",
+    labelKey: "component.status.blocked",
     className: "bg-status-error/15 text-status-error border-status-error/20",
   },
   info: {
-    label: "信息",
+    labelKey: "component.status.info",
     className: "bg-status-info/15 text-status-info border-status-info/20",
   },
   advisory: {
-    label: "建议模式",
+    labelKey: "component.status.advisory",
     className: "bg-status-warning/15 text-status-warning border-status-warning/20",
   },
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const { t } = useI18n()
   const config = statusConfig[status]
 
   return (
-    <span
+    <Badge
+      variant="outline"
       className={cn(
-        "inline-flex items-center px-2 py-0.5 text-xs font-medium rounded border",
+        "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
         config.className,
         className
       )}
     >
-      {config.label}
-    </span>
+      {t(config.labelKey)}
+    </Badge>
   )
 }

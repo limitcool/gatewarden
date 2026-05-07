@@ -1,5 +1,6 @@
 "use client"
 
+import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
 interface ScopeBadgeProps {
@@ -10,16 +11,11 @@ interface ScopeBadgeProps {
 
 export function ScopeBadge({ children, variant = "default", className }: ScopeBadgeProps) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center px-2 py-0.5 text-xs font-medium rounded",
-        variant === "default" 
-          ? "bg-secondary text-secondary-foreground" 
-          : "border border-border text-muted-foreground",
-        className
-      )}
+    <Badge
+      variant={variant === "default" ? "secondary" : "outline"}
+      className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium", className)}
     >
       {children}
-    </span>
+    </Badge>
   )
 }

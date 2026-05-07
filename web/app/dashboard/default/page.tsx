@@ -18,11 +18,13 @@ import { buildLiveEventStats, getDashboardOverview, getEventsOverview, normalize
 import type { DashboardOverviewDto } from "@/lib/console-types"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { useI18n } from "@/components/i18n-provider"
 
 const iconMap = [Shield, Activity, AlertTriangle, Clock]
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { t, locale } = useI18n()
   const [data, setData] = useState<DashboardOverviewDto | null>(null)
   const [liveEvents, setLiveEvents] = useState<ReturnType<typeof normalizeEventRows>>([])
 
@@ -34,17 +36,17 @@ export default function DashboardPage() {
           getEventsOverview(),
         ])
         setData(dashboardResponse.data)
-        setLiveEvents(normalizeEventRows(eventsResponse.data.stream))
+        setLiveEvents(normalizeEventRows(eventsResponse.data.stream, locale))
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "加载概览失败")
+        toast.error(error instanceof Error ? error.message : t("page.overview.toast.loadError"))
       }
     }
 
     void loadDashboard()
   }, [])
 
-  const actions = normalizeActions(data?.actions ?? [])
-  const stats = buildLiveEventStats(liveEvents)
+  const actions = normalizeActions(data?.actions ?? [], locale)
+  const stats = buildLiveEventStats(liveEvents, locale)
 
   const handleAction = (action: { cta: string; ctaKey?: string }) => {
     if (action.ctaKey?.toLowerCase().includes("rules")) {
@@ -61,13 +63,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="概览"
-        description="Gatewarden 安全网关运行状态"
+        title={t("page.overview.title")}
+        description={t("page.overview.description")}
       />
 
       {/* 核心指标 */}
       <MetricsGrid columns={4}>
-        {normalizeMetrics(data?.metrics ?? []).map((metric, index) => (
+        {normalizeMetrics(data?.metrics ?? [], locale).map((metric, index) => (
           <MetricCard
             key={metric.label}
             label={metric.label}
@@ -99,9 +101,9 @@ export default function DashboardPage() {
 
       {/* 事件和操作 */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <EventStreamCard
-          events={normalizeRecentEvents(data?.recentEvents ?? [])}
-          title="最近事件"
+          <EventStreamCard
+          events={normalizeRecentEvents(data?.recentEvents ?? [], locale)}
+          title={t("page.overview.recentEvents")}
           maxItems={5}
           className="lg:col-span-2"
         />
@@ -113,7 +115,7 @@ export default function DashboardPage() {
       {/* 快捷操作 */}
       <ActionCard
         actions={actions}
-        title="快捷操作"
+        title={t("page.overview.quickActions")}
         onAction={handleAction}
       />
     </div>

@@ -14,7 +14,7 @@ use axum::{
     routing::{get, post},
 };
 use ingress_api::routes;
-use ingress_api::ExplainEventRequest;
+use ingress_api::{ExplainEventRequest, AppConfigDto};
 use serde::Deserialize;
 use std::sync::RwLock;
 use serde::Serialize;
@@ -101,11 +101,13 @@ pub struct HealthzResponse {
 
 #[derive(Debug, Deserialize)]
 struct UpdateSettingsRequest {
-    subject_header: String,
-    email_header: String,
-    locale: String,
-    notes: String,
-    shadow_mode_enabled: bool,
+    subject_header: Option<String>,
+    email_header: Option<String>,
+    locale: Option<String>,
+    notes: Option<String>,
+    shadow_mode_enabled: Option<bool>,
+    raw_yaml: Option<String>,
+    config: Option<AppConfigDto>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -258,26 +260,95 @@ async fn update_settings(
         Err(error) => return error.into_response(),
     };
 
-    if payload.subject_header.trim().is_empty() || payload.email_header.trim().is_empty() {
+    if payload.subject_header.as_deref().is_some_and(|value| value.trim().is_empty())
+        || payload.email_header.as_deref().is_some_and(|value| value.trim().is_empty())
+    {
         return (
             StatusCode::BAD_REQUEST,
             "subject_header and email_header must not be empty",
         )
             .into_response();
     }
-    if payload.locale != "en" && payload.locale != "zh-CN" {
-        return (StatusCode::BAD_REQUEST, "locale must be en or zh-CN").into_response();
+    if let Some(locale) = payload.locale.as_deref() {
+        if locale != "en" && locale != "zh-CN" {
+            return (StatusCode::BAD_REQUEST, "locale must be en or zh-CN").into_response();
+        }
     }
 
-    let updated = ConsoleSettingsState {
-        subject_header: payload.subject_header.trim().to_string(),
-        email_header: payload.email_header.trim().to_string(),
-        locale: payload.locale,
-        notes: payload.notes.trim().to_string(),
-        shadow_mode_enabled: payload.shadow_mode_enabled,
+    let current = state
+        .runtime_settings
+        .read()
+        .expect("runtime settings lock poisoned")
+        .clone();
+
+    let mut updated = ConsoleSettingsState {
+        subject_header: payload
+            .subject_header
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(&current.subject_header)
+            .to_string(),
+        email_header: payload
+            .email_header
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(&current.email_header)
+            .to_string(),
+        locale: payload.locale.unwrap_or(current.locale),
+        notes: payload
+            .notes
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or(&current.notes)
+            .to_string(),
+        shadow_mode_enabled: payload.shadow_mode_enabled.unwrap_or(current.shadow_mode_enabled),
+        raw_yaml: current.raw_yaml.clone(),
         updated_by: Some(principal.subject_id),
         updated_at: chrono::Utc::now(),
     };
+
+    if let Some(config) = payload.config.as_ref() {
+        let next_config = map_app_config_dto(config);
+        let raw_yaml = match serde_yaml::to_string(&next_config) {
+            Ok(raw_yaml) => raw_yaml,
+            Err(error) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("failed to serialize gatewarden.yaml: {error}"),
+                )
+                    .into_response();
+            }
+        };
+        let written = match crate::config::AppConfig::write_raw(&raw_yaml) {
+            Ok(config) => config,
+            Err(error) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("failed to write gatewarden.yaml: {error}"),
+                )
+                    .into_response();
+            }
+        };
+        updated.raw_yaml = raw_yaml;
+        updated.subject_header = written.identity.trusted_headers.subject;
+        updated.email_header = written.identity.trusted_headers.email;
+    } else if let Some(raw_yaml) = payload.raw_yaml.as_deref() {
+        let written = match crate::config::AppConfig::write_raw(raw_yaml) {
+            Ok(config) => config,
+            Err(error) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("failed to write gatewarden.yaml: {error}"),
+                )
+                    .into_response();
+            }
+        };
+        updated.raw_yaml = raw_yaml.to_string();
+        updated.subject_header = written.identity.trusted_headers.subject;
+        updated.email_header = written.identity.trusted_headers.email;
+    }
 
     if let Err(error) = state.store.save_console_settings(&updated).await {
         return (
@@ -381,6 +452,65 @@ async fn forward_auth(
             format!("forward auth evaluation failed: {error}"),
         )
             .into_response(),
+    }
+}
+
+fn map_app_config_dto(dto: &AppConfigDto) -> crate::config::AppConfig {
+    crate::config::AppConfig {
+        server: crate::config::ServerConfig {
+            listen_addr: dto.server.listen_addr.clone(),
+        },
+        database: crate::config::DatabaseConfig {
+            url: dto.database.url.clone(),
+        },
+        identity: crate::config::IdentityConfig {
+            mode: dto.identity.mode.clone(),
+            provider_hint: dto.identity.provider_hint.clone(),
+            trusted_headers: crate::config::TrustedHeadersConfig {
+                authenticated: dto.identity.trusted_headers.authenticated.clone(),
+                subject: dto.identity.trusted_headers.subject.clone(),
+                email: dto.identity.trusted_headers.email.clone(),
+                groups: dto.identity.trusted_headers.groups.clone(),
+                provider: dto.identity.trusted_headers.provider.clone(),
+            },
+        },
+        security: crate::config::SecurityConfig {
+            admin_shadow_prefixes: dto.security.admin_shadow_prefixes.clone(),
+            login_ip_limit: crate::config::RateLimitConfig {
+                rule_id: dto.security.login_ip_limit.rule_id.clone(),
+                path_prefix: dto.security.login_ip_limit.path_prefix.clone(),
+                rps: dto.security.login_ip_limit.rps,
+                burst: dto.security.login_ip_limit.burst,
+            },
+            login_user_limit: crate::config::RateLimitConfig {
+                rule_id: dto.security.login_user_limit.rule_id.clone(),
+                path_prefix: dto.security.login_user_limit.path_prefix.clone(),
+                rps: dto.security.login_user_limit.rps,
+                burst: dto.security.login_user_limit.burst,
+            },
+            console_admin_groups: dto.security.console_admin_groups.clone(),
+            protected_hosts: dto.security.protected_hosts.clone(),
+        },
+        ai: crate::config::AiConfig {
+            enabled: dto.ai.enabled,
+            provider: dto.ai.provider.clone(),
+            model: dto.ai.model.clone(),
+            api_key_env: dto.ai.api_key_env.clone(),
+            base_url: dto.ai.base_url.clone(),
+            timeout_ms: dto.ai.timeout_ms,
+            system_prompt: dto.ai.system_prompt.clone(),
+        },
+        observability: crate::config::ObservabilityConfig {
+            caddy_access_log: crate::config::CaddyAccessLogConfig {
+                enabled: dto.observability.caddy_access_log.enabled,
+                path: dto.observability.caddy_access_log.path.clone(),
+                poll_interval_ms: dto.observability.caddy_access_log.poll_interval_ms,
+            },
+            geoip: crate::config::GeoIpConfig {
+                enabled: dto.observability.geoip.enabled,
+                database_path: dto.observability.geoip.database_path.clone(),
+            },
+        },
     }
 }
 

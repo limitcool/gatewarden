@@ -14,11 +14,13 @@ import type {
   RulesOverviewDto,
   SettingsOverviewDto,
   SettingsStateDto,
+  AppConfigDto,
   AiExplanationDto,
   SuggestionItemDto,
   SuggestionsOverviewDto,
 } from "./console-types"
 import type { EventRow } from "@/components/console"
+import type { Locale } from "@/components/i18n-provider"
 
 export type HostStatus = "protected" | "unprotected" | "unknown"
 
@@ -27,6 +29,10 @@ export interface HostInventoryItem {
   status: HostStatus
   isProtected: boolean
   seenInEvents: boolean
+}
+
+function isZh(locale: Locale) {
+  return locale === "zh-CN"
 }
 
 const consoleHeaders = {
@@ -65,7 +71,7 @@ export function getSeverity(value: string): "critical" | "warning" | "info" | "s
   return "info"
 }
 
-const exactTextMap: Record<string, string> = {
+const zhExactTextMap: Record<string, string> = {
   "Protected routes": "受保护路径",
   "Rate limit policies": "限流策略",
   "Captured events": "采集事件",
@@ -130,8 +136,24 @@ const exactTextMap: Record<string, string> = {
   "Calm": "平稳",
 }
 
-function translateText(text: string) {
-  let result = exactTextMap[text] ?? text
+const enExactTextMap: Record<string, string> = {
+  "全部": "All",
+  "规则名称": "Rule name",
+  "作用域": "Scope",
+  "模式": "Mode",
+  "状态": "Status",
+  "当前选中的持久化策略规则": "The currently selected persisted policy rule",
+  "实时来自规则存储的匹配范围": "The live matching scope from the rule store",
+  "当前执行模式": "The current execution mode",
+  "当前审核或生效状态": "The current review or active state",
+}
+
+function translateText(text: string, locale: Locale = "zh-CN") {
+  if (!isZh(locale)) {
+    return enExactTextMap[text] ?? text
+  }
+
+  let result = zhExactTextMap[text] ?? text
 
   const replacements: Array<[RegExp, string]> = [
     [/Current persisted rule inventory across admin, login, and API surfaces/gi, "当前已持久化的管理面、登录面和 API 保护规则数量"],
@@ -197,38 +219,38 @@ export function getStatus(value?: string): "active" | "review" | "shadow" | "blo
   return "info"
 }
 
-export function normalizeMetrics(metrics: MetricDto[] | DashboardMetricDto[]) {
+export function normalizeMetrics(metrics: MetricDto[] | DashboardMetricDto[], locale: Locale = "zh-CN") {
   return metrics.map((metric) => ({
-    label: translateText(metric.label),
+    label: translateText(metric.label, locale),
     value: metric.value,
-    detail: translateText(metric.detail),
+    detail: translateText(metric.detail, locale),
     status: "status" in metric ? getStatus(metric.status) : undefined,
   }))
 }
 
-export function normalizeFilters(filters: FilterChipDto[]) {
+export function normalizeFilters(filters: FilterChipDto[], locale: Locale = "zh-CN") {
   return [
-    { label: "全部", value: "all" },
+    { label: translateText("全部", locale), value: "all" },
     ...filters.map((filter) => ({
-      label: translateText(filter.label),
+      label: translateText(filter.label, locale),
       value: filter.value,
     })),
   ]
 }
 
-export function normalizeDetails(details: DetailItemDto[]) {
+export function normalizeDetails(details: DetailItemDto[], locale: Locale = "zh-CN") {
   return details.map((detail) => ({
-    label: translateText(detail.label),
-    value: translateText(detail.value),
-    description: translateText(detail.description),
+    label: translateText(detail.label, locale),
+    value: translateText(detail.value, locale),
+    description: translateText(detail.description, locale),
   }))
 }
 
-export function normalizeRecentEvents(events: EventItemDto[]) {
+export function normalizeRecentEvents(events: EventItemDto[], locale: Locale = "zh-CN") {
   return events.map((event, index) => ({
     id: `recent-${index}`,
-    title: translateEventTitle(event.title),
-    subtitle: translateEventSubtitle(event.subtitle),
+    title: translateEventTitle(event.title, locale),
+    subtitle: translateEventSubtitle(event.subtitle, locale),
     severity: getSeverity(event.severity),
     timestamp: "",
     statusCode: event.statusCode ?? undefined,
@@ -237,56 +259,59 @@ export function normalizeRecentEvents(events: EventItemDto[]) {
   }))
 }
 
-export function normalizeRules(rules: RuleRowDto[]) {
+export function normalizeRules(rules: RuleRowDto[], locale: Locale = "zh-CN") {
   return rules.map((rule, index) => ({
     id: `${rule.name}-${index}`,
     name: rule.name,
-    summary: translateText(rule.summary),
-    scope: translateScope(rule.scope),
+    summary: translateText(rule.summary, locale),
+    scope: translateScope(rule.scope, locale),
     mode: rule.mode,
     status: getStatus(rule.status),
   }))
 }
 
-export function normalizeSuggestions(suggestions: SuggestionItemDto[]) {
+export function normalizeSuggestions(suggestions: SuggestionItemDto[], locale: Locale = "zh-CN") {
   return suggestions.map((item, index) => ({
     id: item.id || `suggestion-${index}`,
-    title: translateText(item.title),
-    summary: translateText(item.summary),
-    badge: translateText(item.badge),
+    title: translateText(item.title, locale),
+    summary: translateText(item.summary, locale),
+    badge: translateText(item.badge, locale),
     confidence: item.confidence ?? undefined,
     evidence: item.evidence ?? [],
     proposedRule: item.proposedRule ?? undefined,
     model: item.model ?? undefined,
     generatedAt: item.generatedAt ?? undefined,
-    primaryAction: translateText(item.primaryAction),
-    secondaryAction: translateText(item.secondaryAction),
+    primaryAction: translateText(item.primaryAction, locale),
+    secondaryAction: translateText(item.secondaryAction, locale),
   }))
 }
 
-export function normalizeActions(actions: ActionItemDto[]) {
+export function normalizeActions(actions: ActionItemDto[], locale: Locale = "zh-CN") {
   return actions.map((action, index) => ({
     id: `action-${index}`,
-    title: translateText(action.title),
-    description: translateText(action.description),
-    cta: translateText(action.cta),
+    title: translateText(action.title, locale),
+    description: translateText(action.description, locale),
+    cta: translateText(action.cta, locale),
     ctaKey: action.cta,
   }))
 }
 
-export function normalizeApprovals(approvals: ApprovalItemDto[]) {
+export function normalizeApprovals(approvals: ApprovalItemDto[], locale: Locale = "zh-CN") {
   return approvals.map((item, index) => ({
     id: `approval-${index}`,
     name: item.name,
-    displayName: translateRuleName(item.name),
-    summary: translateRuleSummary(item.summary, item.name),
-    badge: translateText(item.badge),
-    primaryAction: translateText(item.primaryAction),
-    secondaryAction: translateText(item.secondaryAction),
+    displayName: translateRuleName(item.name, locale),
+    summary: translateRuleSummary(item.summary, item.name, locale),
+    badge: translateText(item.badge, locale),
+    primaryAction: translateText(item.primaryAction, locale),
+    secondaryAction: translateText(item.secondaryAction, locale),
   }))
 }
 
-function translateScope(scope: string) {
+function translateScope(scope: string, locale: Locale = "zh-CN") {
+  if (!isZh(locale)) {
+    return scope.replace(/\s*\+\s*/g, " + ")
+  }
   return scope
     .replace(/subject/gi, "主体")
     .replace(/path/gi, "路径")
@@ -294,7 +319,10 @@ function translateScope(scope: string) {
     .replace(/\s*\+\s*/g, " + ")
 }
 
-function translateEventTitle(title: string) {
+function translateEventTitle(title: string, locale: Locale = "zh-CN") {
+  if (!isZh(locale)) {
+    return title
+  }
   return title
     .replace("policy.allow", "策略放行")
     .replace("rate_limit.exceeded", "限流触发")
@@ -308,7 +336,10 @@ function translateEventTitle(title: string) {
     .replace("http.504 [observe]", "504 网关超时 [观测]")
 }
 
-function translateEventSubtitle(subtitle: string) {
+function translateEventSubtitle(subtitle: string, locale: Locale = "zh-CN") {
+  if (!isZh(locale)) {
+    return subtitle
+  }
   return subtitle
     .replace(/^GET /, "GET ")
     .replace(/^POST /, "POST ")
@@ -344,31 +375,35 @@ function parseEventSubtitle(subtitle: string) {
   }
 }
 
-function translateRuleName(name: string) {
+function translateRuleName(name: string, locale: Locale = "zh-CN") {
   const normalized = name.trim().toLowerCase()
 
   if (normalized === "protect-admin-surface-v2") {
-    return "保护管理后台访问"
+    return isZh(locale) ? "保护管理后台访问" : "Protect admin console access"
   }
   if (normalized === "protect-login-ip" || normalized === "protect-login-user") {
-    return "收紧登录接口限流"
+    return isZh(locale) ? "收紧登录接口限流" : "Tighten login rate limits"
   }
 
   return name
 }
 
-function translateRuleSummary(summary: string, ruleName?: string) {
+function translateRuleSummary(summary: string, ruleName?: string, locale: Locale = "zh-CN") {
   if (ruleName?.trim().toLowerCase() === "protect-admin-surface-v2") {
-    return "收紧匿名用户对 /admin 的访问，仅保留已认证运维人员的正常访问。"
+    return isZh(locale)
+      ? "收紧匿名用户对 /admin 的访问，仅保留已认证运维人员的正常访问。"
+      : "Tighten anonymous access to /admin while preserving normal traffic for authenticated operators."
   }
   if (ruleName?.trim().toLowerCase() === "protect-login-ip" || ruleName?.trim().toLowerCase() === "protect-login-user") {
-    return "针对登录接口增加更严格的限流，降低撞库、爆破和异常重试流量。"
+    return isZh(locale)
+      ? "针对登录接口增加更严格的限流，降低撞库、爆破和异常重试流量。"
+      : "Apply stricter rate limits to login traffic to reduce credential stuffing, brute force, and abnormal retries."
   }
 
-  return translateText(summary)
+  return translateText(summary, locale)
 }
 
-export function normalizeEventRows(events: EventItemDto[]) {
+export function normalizeEventRows(events: EventItemDto[], locale: Locale = "zh-CN") {
   return events.map((event, index) => {
     const parsed = parseEventSubtitle(event.subtitle)
     const ipVersion: "IPv4" | "IPv6" = parsed.ip.includes(":") ? "IPv6" : "IPv4"
@@ -381,14 +416,14 @@ export function normalizeEventRows(events: EventItemDto[]) {
 
     return {
       id: `event-${index}`,
-      timestamp: `${index + 1} 分钟前`,
+      timestamp: isZh(locale) ? `${index + 1} 分钟前` : `${index + 1} min ago`,
       method: parsed.method,
       path: parsed.path,
       host: event.host?.trim() || undefined,
       hostStatus: translateHostStatus(event.hostStatus),
       subject: event.subject?.trim() || parsed.subject,
       statusCode,
-      rule: rule ? translateEventTitle(rule).replace(/\s*\[.*\]/, "") : undefined,
+      rule: rule ? translateEventTitle(rule, locale).replace(/\s*\[.*\]/, "") : undefined,
       severity: getSeverity(event.severity),
       ip: parsed.ip,
       ipVersion,
@@ -411,23 +446,23 @@ export function normalizeEventRows(events: EventItemDto[]) {
   })
 }
 
-export function defaultIpInfoFromEventRows(rows: ReturnType<typeof normalizeEventRows>) {
+export function defaultIpInfoFromEventRows(rows: ReturnType<typeof normalizeEventRows>, locale: Locale = "zh-CN") {
   const first = rows[0]
   if (!first) {
     return {
-      ip: "未采集",
+      ip: isZh(locale) ? "未采集" : "Not captured",
       version: "IPv4" as const,
-      country: "未知",
-      city: "未知",
+      country: isZh(locale) ? "未知" : "Unknown",
+      city: isZh(locale) ? "未知" : "Unknown",
       requestCount: 0,
-      lastSeen: "暂无记录",
+      lastSeen: isZh(locale) ? "暂无记录" : "No records",
     }
   }
 
   return {
     ip: first.ip,
     version: first.ipVersion as "IPv4" | "IPv6",
-    country: first.country ?? "未知",
+    country: first.country ?? (isZh(locale) ? "未知" : "Unknown"),
     countryCode: first.countryCode,
     region: first.region,
     city: first.city,
@@ -445,7 +480,7 @@ export function defaultIpInfoFromEventRows(rows: ReturnType<typeof normalizeEven
   }
 }
 
-export function buildLiveEventStats(rows: EventRow[]) {
+export function buildLiveEventStats(rows: EventRow[], locale: Locale = "zh-CN") {
   const safeRows = rows.length > 0 ? rows : []
   const total = safeRows.length || 1
   const blockedRows = safeRows.filter((row) => row.statusCode >= 400)
@@ -463,7 +498,7 @@ export function buildLiveEventStats(rows: EventRow[]) {
   const geoMap = new Map<string, { country: string; code: string; requests: number; blocked: number }>()
   for (const row of safeRows) {
     const key = row.countryCode ?? row.country ?? "UN"
-    const country = row.country ?? "未知"
+    const country = row.country ?? (isZh(locale) ? "未知" : "Unknown")
     const current = geoMap.get(key) ?? { country, code: key, requests: 0, blocked: 0 }
     current.requests += 1
     if (row.statusCode >= 400) current.blocked += 1
@@ -472,7 +507,11 @@ export function buildLiveEventStats(rows: EventRow[]) {
 
   const categoryMap = new Map<string, number>()
   for (const row of safeRows) {
-    const category = row.statusCode >= 400 ? "阻断 / 限流" : row.rule ? "策略放行" : "正常通过"
+    const category = row.statusCode >= 400
+      ? (isZh(locale) ? "阻断 / 限流" : "Blocked / rate limited")
+      : row.rule
+        ? (isZh(locale) ? "策略放行" : "Policy allow")
+        : (isZh(locale) ? "正常通过" : "Normal pass")
     categoryMap.set(category, (categoryMap.get(category) ?? 0) + 1)
   }
 
@@ -494,7 +533,7 @@ export function buildLiveEventStats(rows: EventRow[]) {
     const current = attackers.get(row.ip) ?? {
       ip: row.ip,
       version: row.ipVersion,
-      country: row.country ?? "未知",
+      country: row.country ?? (isZh(locale) ? "未知" : "Unknown"),
       requests: 0,
       blocked: 0,
     }
@@ -659,7 +698,7 @@ export async function getSettingsOverview() {
   return request<ConsoleResponse<SettingsOverviewDto>>("/api/console/settings")
 }
 
-export async function updateSettings(settings: SettingsStateDto) {
+export async function updateSettings(settings: Partial<SettingsStateDto> & { config?: AppConfigDto }) {
   return request<ConsoleResponse<SettingsOverviewDto>>("/api/console/settings", {
     method: "PUT",
     headers: {
@@ -671,6 +710,8 @@ export async function updateSettings(settings: SettingsStateDto) {
       locale: settings.locale,
       notes: settings.notes,
       shadow_mode_enabled: settings.shadowModeEnabled,
+      raw_yaml: settings.rawYaml,
+      config: settings.config,
     }),
   })
 }

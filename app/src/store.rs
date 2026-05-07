@@ -355,6 +355,7 @@ impl Store {
                 locale: existing.locale,
                 notes: existing.notes,
                 shadow_mode_enabled: existing.shadow_mode_enabled,
+                raw_yaml: existing.raw_yaml,
                 updated_at: existing.updated_at.into(),
                 updated_by: existing.updated_by,
             });
@@ -367,6 +368,7 @@ impl Store {
             locale: Set(defaults.locale.clone()),
             notes: Set(defaults.notes.clone()),
             shadow_mode_enabled: Set(defaults.shadow_mode_enabled),
+            raw_yaml: Set(defaults.raw_yaml.clone()),
             updated_at: Set(defaults.updated_at.into()),
             updated_by: Set(defaults.updated_by.clone()),
         };
@@ -390,6 +392,7 @@ impl Store {
             locale: Set(settings.locale.clone()),
             notes: Set(settings.notes.clone()),
             shadow_mode_enabled: Set(settings.shadow_mode_enabled),
+            raw_yaml: Set(settings.raw_yaml.clone()),
             updated_at: Set(settings.updated_at.into()),
             updated_by: Set(settings.updated_by.clone()),
         };
@@ -533,6 +536,8 @@ impl Store {
                 .await?;
             self.sqlite_add_column_if_missing("http_observations", "is_datacenter", "INTEGER NULL")
                 .await?;
+            self.sqlite_add_column_if_missing("console_settings", "raw_yaml", "TEXT NOT NULL DEFAULT ''")
+                .await?;
             self.ensure_indexes().await?;
             return Ok(());
         }
@@ -654,6 +659,7 @@ impl Store {
                     locale TEXT NOT NULL,
                     notes TEXT NOT NULL,
                     shadow_mode_enabled INTEGER NOT NULL,
+                    raw_yaml TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     updated_by TEXT NULL
                 )

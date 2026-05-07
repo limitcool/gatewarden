@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useI18n } from "@/components/i18n-provider"
 import { ArrowRight } from "lucide-react"
 
 interface Action {
@@ -21,14 +22,16 @@ interface ActionCardProps {
 
 export function ActionCard({
   actions,
-  title = "快捷操作",
+  title,
   className,
   onAction,
 }: ActionCardProps) {
+  const { t } = useI18n()
+
   return (
     <div className={cn("rounded-lg border border-border bg-card", className)}>
       <div className="px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <h3 className="text-sm font-medium text-foreground">{title ?? t("page.overview.quickActions")}</h3>
       </div>
       <div className="divide-y divide-border">
         {actions.map((action) => (
@@ -53,7 +56,7 @@ export function ActionCard({
         ))}
         {actions.length === 0 && (
           <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-            暂无操作
+            {t("component.action.empty")}
           </div>
         )}
       </div>

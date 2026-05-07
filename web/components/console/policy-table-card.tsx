@@ -1,5 +1,6 @@
 "use client"
 
+import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import { StatusBadge, type StatusType } from "./status-badge"
 import { ScopeBadge } from "./scope-badge"
@@ -21,23 +22,24 @@ interface PolicyTableCardProps {
   onRuleClick?: (rule: Rule) => void
 }
 
-const modeMap: Record<string, string> = {
-  enforce: "强制",
-  shadow: "影子",
-  advisory: "建议",
-}
-
 export function PolicyTableCard({
   rules,
-  title = "策略规则",
+  title,
   className,
   onRuleClick,
 }: PolicyTableCardProps) {
+  const { locale, t } = useI18n()
+  const modeMap: Record<string, string> = {
+    enforce: locale === "zh-CN" ? "强制" : "Enforce",
+    shadow: locale === "zh-CN" ? "影子" : "Shadow",
+    advisory: locale === "zh-CN" ? "建议" : "Advisory",
+  }
+
   return (
     <div className={cn("rounded-lg border border-border bg-card", className)}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
-        <span className="text-xs text-muted-foreground">{rules.length} 条规则</span>
+        <h3 className="text-sm font-medium text-foreground">{title ?? t("page.rules.title")}</h3>
+        <span className="text-xs text-muted-foreground">{t("common.rules", { count: rules.length })}</span>
       </div>
       <div className="divide-y divide-border">
         {rules.map((rule) => (
@@ -66,7 +68,7 @@ export function PolicyTableCard({
         ))}
         {rules.length === 0 && (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-            暂无策略规则
+            {t("component.policy.empty")}
           </div>
         )}
       </div>

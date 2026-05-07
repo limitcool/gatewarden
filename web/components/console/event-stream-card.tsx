@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { useI18n } from "@/components/i18n-provider"
 import { AlertCircle, AlertTriangle, Info, CheckCircle } from "lucide-react"
 
 type Severity = "critical" | "warning" | "info" | "success"
@@ -41,17 +42,18 @@ const severityConfig: Record<Severity, { icon: typeof AlertCircle; className: st
 
 export function EventStreamCard({
   events,
-  title = "最近事件",
+  title,
   className,
   maxItems = 5,
 }: EventStreamCardProps) {
+  const { t } = useI18n()
   const displayedEvents = events.slice(0, maxItems)
 
   return (
     <div className={cn("rounded-lg border border-border bg-card", className)}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
-        <span className="text-xs text-muted-foreground">{events.length} 条记录</span>
+        <h3 className="text-sm font-medium text-foreground">{title ?? t("page.overview.recentEvents")}</h3>
+        <span className="text-xs text-muted-foreground">{t("common.requests", { count: events.length })}</span>
       </div>
       <div className="divide-y divide-border">
         {displayedEvents.map((event) => {
@@ -76,7 +78,7 @@ export function EventStreamCard({
         })}
         {events.length === 0 && (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-            暂无事件记录
+            {t("component.eventStream.empty")}
           </div>
         )}
       </div>

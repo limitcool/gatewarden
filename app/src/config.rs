@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{fs, net::SocketAddr, path::Path};
 
-const DEFAULT_CONFIG_PATH: &str = "gatewarden.yaml";
+pub const DEFAULT_CONFIG_PATH: &str = "gatewarden.yaml";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -18,12 +18,29 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn load() -> Result<Self> {
-        let raw = fs::read_to_string(DEFAULT_CONFIG_PATH)
-            .with_context(|| format!("failed to read config file: {DEFAULT_CONFIG_PATH}"))?;
-        let mut config: Self = serde_yaml::from_str(&raw)
-            .with_context(|| format!("failed to parse config file: {DEFAULT_CONFIG_PATH}"))?;
+        let raw = Self::read_raw()?;
+        let mut config = Self::parse_raw(&raw)?;
         config.apply_env_overrides();
         config.validate()?;
+        Ok(config)
+    }
+
+    pub fn read_raw() -> Result<String> {
+        fs::read_to_string(DEFAULT_CONFIG_PATH)
+            .with_context(|| format!("failed to read config file: {DEFAULT_CONFIG_PATH}"))
+    }
+
+    pub fn parse_raw(raw: &str) -> Result<Self> {
+        let config: Self = serde_yaml::from_str(raw)
+            .with_context(|| format!("failed to parse config file: {DEFAULT_CONFIG_PATH}"))?;
+        config.validate()?;
+        Ok(config)
+    }
+
+    pub fn write_raw(raw: &str) -> Result<Self> {
+        let config = Self::parse_raw(raw)?;
+        fs::write(DEFAULT_CONFIG_PATH, raw)
+            .with_context(|| format!("failed to write config file: {DEFAULT_CONFIG_PATH}"))?;
         Ok(config)
     }
 
