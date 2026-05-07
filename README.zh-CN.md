@@ -343,59 +343,92 @@ gatewarden.yaml
 
 ```yaml
 server:
+  # Gatewarden API / forward_auth 的监听地址。
+  # Caddy 要把 forward_auth 指向这里。
+  # 这不是浏览器访问控制台的端口。
   listen_addr: "127.0.0.1:4000"
 
 database:
+  # 数据库连接串。默认 SQLite 适合快速启动。
   url: "sqlite://app/data/ingress.db?mode=rwc"
-  # Production example:
+  # PostgreSQL 示例，适合正式环境：
   # url: "postgres://gatewarden:change-me@127.0.0.1:5432/gatewarden"
 
 identity:
+  # 身份接入模式。当前推荐保留你现有的 OIDC / auth proxy，再把可信头传给 Gatewarden。
   mode: "trusted_header"
+  # 上游身份来源提示，用于控制台展示。
   provider_hint: "external-oidc"
   trusted_headers:
+    # 是否已认证的头名。
     authenticated: "X-Authenticated"
+    # 用户主体标识头名。
     subject: "Remote-User"
+    # 用户邮箱头名。
     email: "Remote-Email"
+    # 用户组 / 角色头名。
     groups: "Remote-Groups"
+    # 上游认证提供方头名。
     provider: "X-Auth-Provider"
 
 security:
+  # 需要重点观察或保护的管理路径前缀。
   admin_shadow_prefixes:
     - "/admin"
   login_ip_limit:
+    # 登录 IP 限流规则 ID。
     rule_id: "protect-login-ip"
+    # 登录接口路径前缀。
     path_prefix: "/api/login"
+    # 单 IP 每秒允许请求数。
     rps: 5
+    # 单 IP 突发桶容量。
     burst: 10
   login_user_limit:
+    # 登录主体限流规则 ID。
     rule_id: "protect-login-user"
+    # 登录接口路径前缀。
     path_prefix: "/api/login"
+    # 单主体每秒允许请求数。
     rps: 3
+    # 单主体突发桶容量。
     burst: 6
+  # 哪些用户组可以访问 Gatewarden 控制台。
   console_admin_groups:
     - "admin"
+  # 明确接入 Gatewarden 保护的域名列表。
   protected_hosts:
     - "app.example.com"
     - "accounts.example.com"
 
 ai:
+  # 是否开启 AI 建议与 AI 解释能力。
   enabled: false
+  # 模型提供方。
   provider: "openai"
+  # 模型名称。
   model: "gpt-4.1-mini"
+  # API Key 对应的环境变量名。
   api_key_env: "GATEWARDEN_AI_API_KEY"
-  # 如果你要接 OpenAI-compatible 网关，可以配置 base_url:
+  # 如果你要接 OpenAI-compatible 网关，可以配置 base_url：
   # base_url: "https://api.openai.com/v1"
+  # AI 请求超时，单位毫秒。
   timeout_ms: 15000
+  # 系统提示词，用于约束 AI 输出风格。
   system_prompt: "You are Gatewarden, an AI security analyst. Produce concise, evidence-based, operator-reviewable guidance."
 
 observability:
   caddy_access_log:
+    # 是否开启 Caddy 结构化 access log 摄取。
     enabled: true
+    # Caddy JSON access log 文件路径。
     path: "app/data/caddy-access.jsonl"
+    # 日志轮询间隔，单位毫秒。
     poll_interval_ms: 1000
   geoip:
+    # 是否开启 GeoIP / ASN / 代理属性补充。
     enabled: false
+    # MMDB 文件路径，例如 GeoLite2-City.mmdb。
     database_path: "app/data/GeoLite2-City.mmdb"
 ```
 

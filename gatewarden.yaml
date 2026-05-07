@@ -1,68 +1,99 @@
 server:
-  # Gatewarden Rust API / forward_auth listener.
-  # Caddy should call this address for /api/forward-auth.
-  # This is not the browser-facing console port.
-  # In the default Docker Compose deployment:
-  # - browser console: http://127.0.0.1:3000
+  # Gatewarden API / forward_auth 的监听地址。
+  # Caddy 需要把 forward_auth 指到这个地址。
+  # 这不是浏览器访问的控制台端口。
+  # 默认 Docker Compose 部署里：
+  # - 浏览器控制台: http://127.0.0.1:3000
   # - Gatewarden API / forward_auth: http://127.0.0.1:4000
   listen_addr: "127.0.0.1:4000"
 
 database:
+  # 数据库连接串。
+  # 默认使用 SQLite，适合本地或单机部署。
   url: "sqlite://app/data/ingress.db?mode=rwc"
-  # Production example:
+  # PostgreSQL 示例，适合正式环境：
   # url: "postgres://gatewarden:change-me@127.0.0.1:5432/gatewarden"
 
 identity:
-  # Keep your existing OIDC / auth proxy in front of Gatewarden.
-  # Gatewarden expects trusted identity headers instead of acting as the OIDC relying party itself.
+  # 身份接入模式。
+  # 当前 OSS 版本建议保留你现有的 OIDC / auth proxy，再把可信头转给 Gatewarden。
   mode: "trusted_header"
+  # 上游身份来源说明，用于控制台展示和运维识别。
   provider_hint: "external-oidc"
   trusted_headers:
-    # Map these to the headers your auth layer already emits.
+    # 是否已认证的头名。
+    # 例如 TinyAuth、oauth2-proxy 或自建认证层可以写入这个头。
     authenticated: "X-Authenticated"
+    # 用户主体标识，通常是用户名、邮箱前缀或用户 ID。
     subject: "Remote-User"
+    # 用户邮箱头名。
     email: "Remote-Email"
+    # 用户组 / 角色头名，用于控制台管理组和策略判断。
     groups: "Remote-Groups"
+    # 上游认证提供方头名，例如 oidc、google、github、zitadel。
     provider: "X-Auth-Provider"
 
 security:
+  # 需要重点观察或保护的管理路径前缀。
+  # 这些路径通常会出现在管理后台或运维入口。
   admin_shadow_prefixes:
     - "/admin"
   login_ip_limit:
+    # 登录限流规则 ID，用于事件流、规则表和审计定位。
     rule_id: "protect-login-ip"
+    # 登录接口路径前缀。
     path_prefix: "/api/login"
+    # 单 IP 每秒允许的请求数。
     rps: 5
+    # 突发桶容量，允许短时间内超过 RPS 的突发流量。
     burst: 10
   login_user_limit:
+    # 登录主体限流规则 ID。
     rule_id: "protect-login-user"
+    # 登录接口路径前缀。
     path_prefix: "/api/login"
+    # 单主体每秒允许的请求数。
     rps: 3
+    # 单主体的突发桶容量。
     burst: 6
+  # 哪些用户组可以进入 Gatewarden 控制台。
   console_admin_groups:
     - "admin"
+  # 明确纳入 Gatewarden 保护范围的业务域名。
+  # 控制台会用它判断域名是“已接入”还是“未接入”。
   protected_hosts:
     - "init.cool"
     - "accounts.init.cool"
 
 ai:
+  # 是否开启 AI 建议、AI 解释等建议层能力。
   enabled: false
+  # 模型提供方。
+  # 当前支持 openai、anthropic、gemini、groq、deepseek、xai、ollama。
   provider: "openai"
+  # 具体模型名称。
   model: "gpt-4.1-mini"
+  # API Key 所在的环境变量名，而不是直接把密钥写在配置里。
   api_key_env: "GATEWARDEN_AI_API_KEY"
-  # Optional for OpenAI-compatible gateways such as OpenRouter or self-hosted proxies:
+  # 可选：OpenAI-compatible 网关地址，例如 OpenRouter、中转层或自建代理。
   # base_url: "https://api.openai.com/v1"
+  # AI 请求超时时间，单位毫秒。
   timeout_ms: 15000
+  # 系统提示词，用于约束 AI 输出风格，保持结论简洁、可审计、可复核。
   system_prompt: "You are Gatewarden, an AI security analyst. Produce concise, evidence-based, operator-reviewable guidance."
 
 observability:
   caddy_access_log:
-    # Turn this on after Caddy is writing structured JSON access logs to the mounted path below.
+    # 是否开启 Caddy 结构化 access log 摄取。
+    # 打开后，Gatewarden 会从这份 JSON 日志里读取状态码、耗时、域名、UA 等观测数据。
     enabled: false
-    # Example target inside the container. Mount your real Caddy JSON log here if Caddy runs elsewhere.
+    # Caddy JSON access log 的路径。
+    # 如果 Caddy 不在同一个容器里，请把真实日志文件挂载到这里。
     path: "app/data/caddy-access.jsonl"
-    # Caddy log polling interval in milliseconds.
+    # 轮询日志文件的时间间隔，单位毫秒。
     poll_interval_ms: 1000
   geoip:
+    # 是否开启 GeoIP / ASN / 代理属性补充。
     enabled: false
-    # Optional MMDB file for country / ASN / proxy enrichment.
+    # MMDB 数据库文件路径，例如 GeoLite2-City.mmdb。
     database_path: "app/data/GeoLite2-City.mmdb"
