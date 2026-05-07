@@ -26,6 +26,7 @@ It produces:
 - GitHub Release attachments
 - multi-arch Docker images pushed to `ghcr.io`
 - a `latest` image for the default branch and versioned images for tags
+- release notes that merge `docs/release-<version>.md` with GitHub-generated change summaries
 
 ## GHCR image
 
@@ -58,6 +59,20 @@ git push origin v0.1.0
 ```
 
 That will trigger the release workflow.
+
+If you want a curated release body, add:
+
+```text
+docs/release-<version>.md
+```
+
+Example:
+
+```text
+docs/release-0.1.5.md
+```
+
+The workflow will prepend that document and then append GitHub-generated notes for the tag.
 
 Pushes to `main` will also refresh the `ghcr.io/<owner>/<repo>:latest` image.
 

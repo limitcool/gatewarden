@@ -30,10 +30,32 @@ pub struct EventRecordInput {
 #[derive(Debug, Clone)]
 pub struct PolicyRuleSeed {
     pub name: String,
+    pub kind: String,
     pub summary: String,
     pub scope: String,
     pub status: String,
     pub mode: String,
+    pub host: Option<String>,
+    pub path_prefix: Option<String>,
+    pub rps: Option<u32>,
+    pub burst: Option<u32>,
+    pub admin_prefixes: Vec<String>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PolicyRuleUpsert {
+    pub name: String,
+    pub kind: String,
+    pub summary: String,
+    pub scope: String,
+    pub status: String,
+    pub mode: String,
+    pub host: Option<String>,
+    pub path_prefix: Option<String>,
+    pub rps: Option<u32>,
+    pub burst: Option<u32>,
+    pub admin_prefixes: Vec<String>,
     pub source: String,
 }
 
@@ -425,10 +447,16 @@ impl Store {
             let now = Utc::now();
             let model = policy_rules::ActiveModel {
                 name: Set(seed.name.clone()),
+                kind: Set(seed.kind.clone()),
                 summary: Set(seed.summary.clone()),
                 scope: Set(seed.scope.clone()),
                 status: Set(seed.status.clone()),
                 mode: Set(seed.mode.clone()),
+                host: Set(seed.host.clone()),
+                path_prefix: Set(seed.path_prefix.clone()),
+                rps: Set(seed.rps.map(|value| value as i32)),
+                burst: Set(seed.burst.map(|value| value as i32)),
+                admin_prefixes_json: Set(serde_json::to_string(&seed.admin_prefixes)?),
                 source: Set(seed.source.clone()),
                 created_at: Set(now.into()),
                 updated_at: Set(now.into()),
@@ -454,16 +482,81 @@ impl Store {
 
         Ok(rows
             .into_iter()
-            .map(|row| PolicyRuleState {
-                name: row.name,
-                summary: row.summary,
-                scope: row.scope,
-                status: row.status,
-                mode: row.mode,
-                source: row.source,
-                approved_by: row.approved_by,
-            })
-            .collect())
+            .map(map_policy_rule_state)
+            .collect::<Result<Vec<_>>>()?)
+    }
+
+    pub async fn create_policy_rule(&self, rule: PolicyRuleUpsert) -> Result<PolicyRuleState> {
+        let now = Utc::now();
+        let model = policy_rules::ActiveModel {
+            name: Set(rule.name),
+            kind: Set(rule.kind),
+            summary: Set(rule.summary),
+            scope: Set(rule.scope),
+            status: Set(rule.status),
+            mode: Set(rule.mode),
+            host: Set(rule.host),
+            path_prefix: Set(rule.path_prefix),
+            rps: Set(rule.rps.map(|value| value as i32)),
+            burst: Set(rule.burst.map(|value| value as i32)),
+            admin_prefixes_json: Set(serde_json::to_string(&rule.admin_prefixes)?),
+            source: Set(rule.source),
+            created_at: Set(now.into()),
+            updated_at: Set(now.into()),
+            approved_by: Set(None),
+            ..Default::default()
+        };
+
+        let inserted = model
+            .insert(&self.db)
+            .await
+            .context("failed to create policy rule")?;
+
+        map_policy_rule_state(inserted)
+    }
+
+    pub async fn update_policy_rule(
+        &self,
+        rule_name: &str,
+        rule: PolicyRuleUpsert,
+    ) -> Result<PolicyRuleState> {
+        let existing = policy_rules::Entity::find()
+            .filter(policy_rules::Column::Name.eq(rule_name.to_string()))
+            .one(&self.db)
+            .await
+            .with_context(|| format!("failed to query policy rule: {rule_name}"))?
+            .with_context(|| format!("policy rule not found: {rule_name}"))?;
+
+        let mut model: policy_rules::ActiveModel = existing.into();
+        model.name = Set(rule.name);
+        model.kind = Set(rule.kind);
+        model.summary = Set(rule.summary);
+        model.scope = Set(rule.scope);
+        model.status = Set(rule.status);
+        model.mode = Set(rule.mode);
+        model.host = Set(rule.host);
+        model.path_prefix = Set(rule.path_prefix);
+        model.rps = Set(rule.rps.map(|value| value as i32));
+        model.burst = Set(rule.burst.map(|value| value as i32));
+        model.admin_prefixes_json = Set(serde_json::to_string(&rule.admin_prefixes)?);
+        model.source = Set(rule.source);
+        model.updated_at = Set(Utc::now().into());
+
+        let updated = model
+            .update(&self.db)
+            .await
+            .with_context(|| format!("failed to update policy rule: {rule_name}"))?;
+
+        map_policy_rule_state(updated)
+    }
+
+    pub async fn delete_policy_rule(&self, rule_name: &str) -> Result<()> {
+        policy_rules::Entity::delete_many()
+            .filter(policy_rules::Column::Name.eq(rule_name.to_string()))
+            .exec(&self.db)
+            .await
+            .with_context(|| format!("failed to delete policy rule: {rule_name}"))?;
+        Ok(())
     }
 
     pub async fn approve_rule(&self, rule_name: &str, approved_by: &str) -> Result<()> {
@@ -537,6 +630,18 @@ impl Store {
             self.sqlite_add_column_if_missing("http_observations", "is_datacenter", "INTEGER NULL")
                 .await?;
             self.sqlite_add_column_if_missing("console_settings", "raw_yaml", "TEXT NOT NULL DEFAULT ''")
+                .await?;
+            self.sqlite_add_column_if_missing("policy_rules", "kind", "TEXT NOT NULL DEFAULT 'custom'")
+                .await?;
+            self.sqlite_add_column_if_missing("policy_rules", "host", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("policy_rules", "path_prefix", "TEXT NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("policy_rules", "rps", "INTEGER NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("policy_rules", "burst", "INTEGER NULL")
+                .await?;
+            self.sqlite_add_column_if_missing("policy_rules", "admin_prefixes_json", "TEXT NOT NULL DEFAULT '[]'")
                 .await?;
             self.ensure_indexes().await?;
             return Ok(());
@@ -675,10 +780,16 @@ impl Store {
                 CREATE TABLE IF NOT EXISTS policy_rules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                     name TEXT NOT NULL UNIQUE,
+                    kind TEXT NOT NULL DEFAULT 'custom',
                     summary TEXT NOT NULL,
                     scope TEXT NOT NULL,
                     status TEXT NOT NULL,
                     mode TEXT NOT NULL,
+                    host TEXT NULL,
+                    path_prefix TEXT NULL,
+                    rps INTEGER NULL,
+                    burst INTEGER NULL,
+                    admin_prefixes_json TEXT NOT NULL DEFAULT '[]',
                     source TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -905,6 +1016,28 @@ fn map_ai_event_explanation(row: ai_event_explanations::Model) -> Result<StoredA
         model_name: row.model_name,
         provider: row.provider,
         created_at: row.created_at.into(),
+    })
+}
+
+fn map_policy_rule_state(row: policy_rules::Model) -> Result<PolicyRuleState> {
+    let admin_prefixes = serde_json::from_str::<Vec<String>>(&row.admin_prefixes_json)
+        .context("failed to parse policy rule admin prefixes json")?;
+
+    Ok(PolicyRuleState {
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+        summary: row.summary,
+        scope: row.scope,
+        status: row.status,
+        mode: row.mode,
+        host: row.host,
+        path_prefix: row.path_prefix,
+        rps: row.rps.map(|value| value as u32),
+        burst: row.burst.map(|value| value as u32),
+        admin_prefixes,
+        source: row.source,
+        approved_by: row.approved_by,
     })
 }
 

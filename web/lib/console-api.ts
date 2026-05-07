@@ -15,6 +15,7 @@ import type {
   SettingsOverviewDto,
   SettingsStateDto,
   AppConfigDto,
+  UpsertPolicyRuleRequest,
   AiExplanationDto,
   SuggestionItemDto,
   SuggestionsOverviewDto,
@@ -27,7 +28,7 @@ export type HostStatus = "protected" | "unprotected" | "unknown"
 export interface HostInventoryItem {
   host: string
   status: HostStatus
-  isProtected: boolean
+  isConnected: boolean
   seenInEvents: boolean
 }
 
@@ -58,6 +59,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ? `请求失败 (${response.status})`
       : rawMessage.trim() || `Request failed: ${response.status}`
     throw new Error(message)
+  }
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  const contentLength = response.headers.get("content-length")
+  if (contentLength === "0") {
+    return undefined as T
   }
 
   return response.json() as Promise<T>
@@ -267,6 +277,13 @@ export function normalizeRules(rules: RuleRowDto[], locale: Locale = "zh-CN") {
     scope: translateScope(rule.scope, locale),
     mode: rule.mode,
     status: getStatus(rule.status),
+    kind: rule.kind,
+    host: rule.host?.trim() || undefined,
+    pathPrefix: rule.pathPrefix?.trim() || undefined,
+    rps: rule.rps ?? undefined,
+    burst: rule.burst ?? undefined,
+    adminPrefixes: rule.adminPrefixes ?? [],
+    source: rule.source?.trim() || undefined,
   }))
 }
 
@@ -518,7 +535,7 @@ export function buildLiveEventStats(rows: EventRow[], locale: Locale = "zh-CN") 
   const eventCategories = Array.from(categoryMap.entries()).map(([name, value], index) => ({
     name,
     value,
-    color: ["hsl(var(--destructive))", "hsl(var(--primary))", "hsl(var(--status-info))"][index % 3],
+    color: ["var(--destructive)", "var(--primary)", "var(--status-info)"][index % 3],
   }))
 
   const ipv4 = safeRows.filter((row) => row.ipVersion === "IPv4").length
@@ -580,17 +597,17 @@ export function buildHostOptions(rows: EventRow[]) {
 }
 
 export function buildHostInventory(
-  protectedHosts: string[] = [],
+  connectedHosts: string[] = [],
   observedHosts: string[] = [],
   rows: EventRow[] = []
 ): HostInventoryItem[] {
   const inventory = new Map<string, HostInventoryItem>()
 
-  for (const host of protectedHosts.map((item) => item.trim()).filter(Boolean)) {
+  for (const host of connectedHosts.map((item) => item.trim()).filter(Boolean)) {
     inventory.set(host, {
       host,
       status: "protected",
-      isProtected: true,
+      isConnected: true,
       seenInEvents: false,
     })
   }
@@ -600,7 +617,7 @@ export function buildHostInventory(
     inventory.set(host, {
       host,
       status: current?.status ?? "unprotected",
-      isProtected: current?.isProtected ?? false,
+      isConnected: current?.isConnected ?? false,
       seenInEvents: true,
     })
   }
@@ -615,14 +632,14 @@ export function buildHostInventory(
     inventory.set(host, {
       host,
       status: nextStatus,
-      isProtected: nextStatus === "protected",
+      isConnected: nextStatus === "protected",
       seenInEvents: true,
     })
   }
 
   return Array.from(inventory.values()).sort((left, right) => {
-    if (left.isProtected !== right.isProtected) {
-      return left.isProtected ? -1 : 1
+    if (left.isConnected !== right.isConnected) {
+      return left.isConnected ? -1 : 1
     }
     return left.host.localeCompare(right.host)
   })
@@ -638,6 +655,32 @@ export async function getEventsOverview() {
 
 export async function getRulesOverview() {
   return request<ConsoleResponse<RulesOverviewDto>>("/api/console/rules")
+}
+
+export async function createRule(payload: UpsertPolicyRuleRequest) {
+  return request<ConsoleResponse<RulesOverviewDto>>("/api/console/rules", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateRule(ruleName: string, payload: UpsertPolicyRuleRequest) {
+  return request<ConsoleResponse<RulesOverviewDto>>(`/api/console/rules/${encodeURIComponent(ruleName)}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteRule(ruleName: string) {
+  return request<void>(`/api/console/rules/${encodeURIComponent(ruleName)}`, {
+    method: "DELETE",
+  })
 }
 
 export async function getSuggestionsOverview() {
@@ -699,18 +742,21 @@ export async function getSettingsOverview() {
 }
 
 export async function updateSettings(settings: Partial<SettingsStateDto> & { config?: AppConfigDto }) {
+  const current = await getSettingsOverview()
+  const currentSettings = current.data.settings
+
   return request<ConsoleResponse<SettingsOverviewDto>>("/api/console/settings", {
     method: "PUT",
     headers: {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      subject_header: settings.subjectHeader,
-      email_header: settings.emailHeader,
-      locale: settings.locale,
-      notes: settings.notes,
-      shadow_mode_enabled: settings.shadowModeEnabled,
-      raw_yaml: settings.rawYaml,
+      subject_header: settings.subjectHeader ?? currentSettings.subjectHeader,
+      email_header: settings.emailHeader ?? currentSettings.emailHeader,
+      locale: settings.locale ?? currentSettings.locale,
+      notes: settings.notes ?? currentSettings.notes,
+      shadow_mode_enabled: settings.shadowModeEnabled ?? currentSettings.shadowModeEnabled,
+      raw_yaml: settings.rawYaml ?? currentSettings.rawYaml,
       config: settings.config,
     }),
   })

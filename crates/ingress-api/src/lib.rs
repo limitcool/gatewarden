@@ -81,6 +81,14 @@ pub struct RuleRowDto {
     pub scope: String,
     pub status: String,
     pub mode: String,
+    pub kind: String,
+    pub host: Option<String>,
+    pub path_prefix: Option<String>,
+    pub rps: Option<u32>,
+    pub burst: Option<u32>,
+    #[serde(default)]
+    pub admin_prefixes: Vec<String>,
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -326,4 +334,21 @@ pub struct ExplainEventRequest {
     pub response_time_ms: Option<i64>,
     pub client_ip: String,
     pub user_agent: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertPolicyRuleRequest {
+    pub name: Option<String>,
+    pub kind: String,
+    pub summary: Option<String>,
+    pub mode: String,
+    pub host: Option<String>,
+    pub path_prefix: Option<String>,
+    pub rps: Option<u32>,
+    pub burst: Option<u32>,
+    #[serde(default)]
+    pub admin_prefixes: Vec<String>,
+    pub status: Option<String>,
+    pub source: Option<String>,
 }

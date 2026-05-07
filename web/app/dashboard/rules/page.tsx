@@ -9,6 +9,7 @@ import {
   PolicyTableCard,
   DetailListCard,
 } from "@/components/console"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,24 +22,114 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Shield, Zap, Target, Plus } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Shield, Zap, Target, Compass, ExternalLink, Github, Link2, PencilLine, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { getRulesOverview, normalizeDetails, normalizeFilters, normalizeMetrics, normalizeRules } from "@/lib/console-api"
-import type { RulesOverviewDto } from "@/lib/console-types"
+import {
+  buildHostInventory,
+  createRule,
+  deleteRule,
+  getEventsOverview,
+  getRulesOverview,
+  normalizeDetails,
+  normalizeEventRows,
+  normalizeMetrics,
+  normalizeRules,
+  updateRule,
+} from "@/lib/console-api"
+import type { EventsOverviewDto, RuleRowDto, RulesOverviewDto, UpsertPolicyRuleRequest } from "@/lib/console-types"
 import { useI18n } from "@/components/i18n-provider"
 
 const iconMap = [Shield, Zap, Target]
 
+type PlaybookKind = "admin-protect" | "rate-limit-ip" | "rate-limit-user"
+type RuleFilter = "all" | "active" | "review" | "shadow" | PlaybookKind
+
+type NormalizedRule = ReturnType<typeof normalizeRules>[number]
+
+const caddySnippet = `(gatewarden_forward_auth) {
+    forward_auth localhost:10040 {
+        uri /api/forward-auth
+        copy_headers Remote-User Remote-Email Remote-Groups X-Auth-Provider X-Authenticated X-Request-Id
+    }
+}`
+
+function toPlaybookKind(value: string): PlaybookKind {
+  if (value === "rate-limit-ip" || value === "rate-limit-user") {
+    return value
+  }
+  return "admin-protect"
+}
+
+function parsePrefixes(value: string) {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function buildDefaultRuleName(kind: PlaybookKind, host?: string, pathPrefix?: string) {
+  const sanitize = (value?: string) =>
+    (value || "global")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+
+  if (kind === "admin-protect") {
+    return `admin-protect-${sanitize(host)}`
+  }
+
+  return `${kind}-${sanitize(host)}-${sanitize(pathPrefix || "/")}`
+}
+
+function buildRulePayload(params: {
+  kind: PlaybookKind
+  name: string
+  summary: string
+  mode: string
+  host?: string
+  pathPrefix?: string
+  rps?: number
+  burst?: number
+  adminPrefixes: string[]
+  status?: string
+}): UpsertPolicyRuleRequest {
+  return {
+    name: params.name.trim() || undefined,
+    kind: params.kind,
+    summary: params.summary.trim() || undefined,
+    mode: params.mode,
+    host: params.host?.trim() || undefined,
+    pathPrefix: params.pathPrefix?.trim() || undefined,
+    rps: params.rps,
+    burst: params.burst,
+    adminPrefixes: params.adminPrefixes,
+    status: params.status,
+    source: "manual",
+  }
+}
+
 export default function RulesPage() {
   const { t, locale } = useI18n()
-  const [activeFilter, setActiveFilter] = useState("all")
+  const [activeFilter, setActiveFilter] = useState<RuleFilter>("all")
   const [searchValue, setSearchValue] = useState("")
   const [selectedRuleName, setSelectedRuleName] = useState<string | null>(null)
   const [data, setData] = useState<RulesOverviewDto | null>(null)
+  const [eventsData, setEventsData] = useState<EventsOverviewDto | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [draftRuleName, setDraftRuleName] = useState("")
-  const [draftRuleSummary, setDraftRuleSummary] = useState("")
-  const [draftRuleScope, setDraftRuleScope] = useState("subject + path")
+  const [editingRuleName, setEditingRuleName] = useState<string | null>(null)
+  const [selectedHost, setSelectedHost] = useState<string | null>(null)
+  const [selectedPlaybook, setSelectedPlaybook] = useState<PlaybookKind>("admin-protect")
+  const [ruleName, setRuleName] = useState("")
+  const [ruleSummary, setRuleSummary] = useState("")
+  const [ruleMode, setRuleMode] = useState<"shadow" | "enforce">("shadow")
+  const [adminPrefixesValue, setAdminPrefixesValue] = useState("")
+  const [pathPrefixValue, setPathPrefixValue] = useState("")
+  const [rpsValue, setRpsValue] = useState("5")
+  const [burstValue, setBurstValue] = useState("10")
+  const [isSavingRule, setIsSavingRule] = useState(false)
+  const [isDeletingRule, setIsDeletingRule] = useState(false)
+  const githubUrl = "https://github.com/limitcool/gatewarden"
 
   const loadRules = async () => {
     try {
@@ -49,61 +140,376 @@ export default function RulesPage() {
     }
   }
 
+  const loadEvents = async () => {
+    try {
+      const response = await getEventsOverview()
+      setEventsData(response.data)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("page.events.toast.loadError"))
+    }
+  }
+
   useEffect(() => {
-    void loadRules()
+    void Promise.all([loadRules(), loadEvents()])
   }, [])
-  const filters = useMemo(() => normalizeFilters(data?.filters ?? [], locale).map((f) => ({
-    ...f,
-    active: f.value === activeFilter,
-  })), [data?.filters, activeFilter, locale])
+
+  const hostInventory = useMemo(() => {
+    return buildHostInventory(
+      eventsData?.protectedHosts ?? [],
+      eventsData?.observedHosts ?? [],
+      normalizeEventRows(eventsData?.stream ?? [], locale)
+    )
+  }, [eventsData?.protectedHosts, eventsData?.observedHosts, eventsData?.stream, locale])
+
+  const selectedHostItem = hostInventory.find((item) => item.host === selectedHost) ?? hostInventory[0]
+  const protectedHostCount = hostInventory.filter((item) => item.isConnected).length
+  const caddyOnlyHostCount = hostInventory.filter((item) => !item.isConnected).length
+
+  useEffect(() => {
+    if (!selectedHostItem && hostInventory[0]) {
+      setSelectedHost(hostInventory[0].host)
+    }
+  }, [hostInventory, selectedHostItem])
+
+  const filters = useMemo(
+    () => [
+      { label: t("common.all"), value: "all" as RuleFilter, active: activeFilter === "all" },
+      { label: t("component.status.active"), value: "active" as RuleFilter, active: activeFilter === "active" },
+      { label: t("component.status.review"), value: "review" as RuleFilter, active: activeFilter === "review" },
+      { label: t("component.status.shadow"), value: "shadow" as RuleFilter, active: activeFilter === "shadow" },
+      { label: t("component.policy.kind.admin"), value: "admin-protect" as RuleFilter, active: activeFilter === "admin-protect" },
+      { label: t("component.policy.kind.rateLimitIp"), value: "rate-limit-ip" as RuleFilter, active: activeFilter === "rate-limit-ip" },
+      { label: t("component.policy.kind.rateLimitUser"), value: "rate-limit-user" as RuleFilter, active: activeFilter === "rate-limit-user" },
+    ],
+    [activeFilter, t]
+  )
 
   const rules = useMemo(() => {
     const list = normalizeRules(data?.rules ?? [], locale)
     return list.filter((rule) => {
-      const matchesFilter = activeFilter === "all" || rule.status === activeFilter || rule.mode === activeFilter
+      const matchesFilter =
+        activeFilter === "all" ||
+        rule.status === activeFilter ||
+        rule.mode === activeFilter ||
+        rule.kind === activeFilter
+
       const keyword = searchValue.trim().toLowerCase()
       const matchesSearch =
         keyword.length === 0 ||
         rule.name.toLowerCase().includes(keyword) ||
         rule.summary.toLowerCase().includes(keyword) ||
-        rule.scope.toLowerCase().includes(keyword)
+        rule.scope.toLowerCase().includes(keyword) ||
+        (rule.host?.toLowerCase().includes(keyword) ?? false) ||
+        (rule.pathPrefix?.toLowerCase().includes(keyword) ?? false)
+
       return matchesFilter && matchesSearch
     })
   }, [data?.rules, activeFilter, searchValue, locale])
 
-  const details = normalizeDetails(data?.details ?? [], locale)
   const selectedRule = rules.find((rule) => rule.name === selectedRuleName) ?? rules[0]
+  const details = normalizeDetails(data?.details ?? [], locale)
+
   const selectedDetails = selectedRule
     ? [
         { label: t("page.rules.detail.name"), value: selectedRule.name, description: t("page.rules.detail.nameDescription") },
-        { label: t("page.rules.detail.scope"), value: selectedRule.scope, description: t("page.rules.detail.scopeDescription") },
+        { label: t("page.rules.detail.kind"), value: t(`component.policy.kind.${selectedRule.kind === "admin-protect" ? "admin" : selectedRule.kind === "rate-limit-ip" ? "rateLimitIp" : "rateLimitUser"}`), description: t("page.rules.detail.kindDescription") },
+        { label: t("page.rules.detail.host"), value: selectedRule.host ?? t("page.rules.detail.global"), description: t("page.rules.detail.hostDescription") },
+        { label: t("page.rules.detail.path"), value: selectedRule.pathPrefix ?? (selectedRule.adminPrefixes[0] ?? t("page.rules.detail.notSet")), description: t("page.rules.detail.pathDescription") },
         { label: t("page.rules.detail.mode"), value: selectedRule.mode, description: t("page.rules.detail.modeDescription") },
         { label: t("page.rules.detail.status"), value: selectedRule.status, description: t("page.rules.detail.statusDescription") },
+        { label: t("page.rules.detail.rateLimit"), value: selectedRule.rps && selectedRule.burst ? `${selectedRule.rps} / ${selectedRule.burst}` : t("page.rules.detail.notSet"), description: t("page.rules.detail.rateLimitDescription") },
+        { label: t("page.rules.detail.source"), value: selectedRule.source === "approved-ai" ? t("component.policy.source.approvedAi") : t("component.policy.source.manual"), description: t("page.rules.detail.sourceDescription") },
       ]
     : details
+
+  const playbooks = useMemo(() => {
+    const activeAdmin = rules.find((rule) => rule.kind === "admin-protect")
+    const activeLoginIp = rules.find((rule) => rule.kind === "rate-limit-ip")
+    const activeLoginUser = rules.find((rule) => rule.kind === "rate-limit-user")
+
+    return [
+      {
+        kind: "admin-protect" as const,
+        title: t("page.rules.playbook.adminTitle"),
+        summary: t("page.rules.playbook.adminSummary"),
+        status: activeAdmin?.status ?? "review",
+      },
+      {
+        kind: "rate-limit-ip" as const,
+        title: t("page.rules.playbook.loginIpTitle"),
+        summary: t("page.rules.playbook.loginIpSummary"),
+        status: activeLoginIp?.status ?? "review",
+      },
+      {
+        kind: "rate-limit-user" as const,
+        title: t("page.rules.playbook.loginUserTitle"),
+        summary: t("page.rules.playbook.loginUserSummary"),
+        status: activeLoginUser?.status ?? "review",
+      },
+    ]
+  }, [rules, t])
+
+  const resetForm = (kind: PlaybookKind, host?: string) => {
+    setEditingRuleName(null)
+    setSelectedPlaybook(kind)
+    setSelectedHost(host ?? selectedHostItem?.host ?? null)
+    setRuleMode(kind === "admin-protect" ? "shadow" : "enforce")
+    setAdminPrefixesValue(kind === "admin-protect" ? "/admin" : "")
+    setPathPrefixValue("/api/login")
+    setRpsValue(kind === "rate-limit-user" ? "3" : "5")
+    setBurstValue(kind === "rate-limit-user" ? "6" : "10")
+    setRuleSummary("")
+    setRuleName(buildDefaultRuleName(kind, host ?? selectedHostItem?.host, "/api/login"))
+  }
+
+  const openCreateDialog = () => {
+    resetForm(selectedPlaybook, selectedHostItem?.host)
+    setIsCreateOpen(true)
+  }
+
+  const openEditDialog = (rule: NormalizedRule) => {
+    setEditingRuleName(rule.name)
+    setSelectedPlaybook(toPlaybookKind(rule.kind))
+    setSelectedHost(rule.host ?? selectedHostItem?.host ?? null)
+    setRuleName(rule.name)
+    setRuleSummary(rule.summary)
+    setRuleMode(rule.mode === "shadow" ? "shadow" : "enforce")
+    setAdminPrefixesValue(rule.adminPrefixes.join("\n"))
+    setPathPrefixValue(rule.pathPrefix ?? "")
+    setRpsValue(rule.rps ? String(rule.rps) : "")
+    setBurstValue(rule.burst ? String(rule.burst) : "")
+    setIsCreateOpen(true)
+  }
+
+  const selectedPlaybookDetail = useMemo(() => {
+    if (selectedPlaybook === "admin-protect") {
+      return {
+        title: t("page.rules.ruleExplain.admin.title"),
+        purpose: t("page.rules.ruleExplain.admin.purpose"),
+        when: t("page.rules.ruleExplain.admin.when"),
+        fields: [
+          {
+            name: t("page.rules.ruleForm.host"),
+            example: "accounts.init.cool",
+            description: t("page.rules.ruleForm.hostHint"),
+          },
+          {
+            name: t("page.rules.ruleExplain.field.adminPrefixes.name"),
+            example: "/admin\n/dashboard/admin",
+            description: t("page.rules.ruleExplain.field.adminPrefixes.description"),
+          },
+          {
+            name: t("page.rules.ruleExplain.field.mode.name"),
+            example: "shadow -> enforce",
+            description: t("page.rules.ruleExplain.field.mode.adminDescription"),
+          },
+        ],
+      }
+    }
+
+    if (selectedPlaybook === "rate-limit-ip") {
+      return {
+        title: t("page.rules.ruleExplain.loginIp.title"),
+        purpose: t("page.rules.ruleExplain.loginIp.purpose"),
+        when: t("page.rules.ruleExplain.loginIp.when"),
+        fields: [
+          {
+            name: t("page.rules.ruleForm.host"),
+            example: "accounts.init.cool",
+            description: t("page.rules.ruleForm.hostHint"),
+          },
+          {
+            name: t("page.rules.ruleExplain.field.pathPrefix.name"),
+            example: "/api/login",
+            description: t("page.rules.ruleExplain.field.pathPrefix.description"),
+          },
+          {
+            name: t("page.rules.ruleExplain.field.rps.name"),
+            example: "5",
+            description: t("page.rules.ruleExplain.field.rps.description"),
+          },
+          {
+            name: t("page.rules.ruleExplain.field.burst.name"),
+            example: "10",
+            description: t("page.rules.ruleExplain.field.burst.description"),
+          },
+        ],
+      }
+    }
+
+    return {
+      title: t("page.rules.ruleExplain.loginUser.title"),
+      purpose: t("page.rules.ruleExplain.loginUser.purpose"),
+      when: t("page.rules.ruleExplain.loginUser.when"),
+      fields: [
+        {
+          name: t("page.rules.ruleForm.host"),
+          example: "accounts.init.cool",
+          description: t("page.rules.ruleForm.hostHint"),
+        },
+        {
+          name: t("page.rules.ruleExplain.field.pathPrefix.name"),
+          example: "/api/login",
+          description: t("page.rules.ruleExplain.field.pathPrefix.description"),
+        },
+        {
+          name: t("page.rules.ruleExplain.field.rps.name"),
+          example: "3",
+          description: t("page.rules.ruleExplain.field.subjectRps.description"),
+        },
+        {
+          name: t("page.rules.ruleExplain.field.burst.name"),
+          example: "6",
+          description: t("page.rules.ruleExplain.field.subjectBurst.description"),
+        },
+      ],
+    }
+  }, [selectedPlaybook, t])
+
+  const syncGeneratedFields = (nextKind: PlaybookKind, nextHost?: string, nextPathPrefix?: string) => {
+    if (!editingRuleName) {
+      setRuleName(buildDefaultRuleName(nextKind, nextHost, nextPathPrefix))
+    }
+
+    if (!ruleSummary.trim()) {
+      if (nextKind === "admin-protect") {
+        setRuleSummary(t("page.rules.summary.admin", { host: nextHost ?? t("page.rules.detail.global") }))
+      } else if (nextKind === "rate-limit-ip") {
+        setRuleSummary(t("page.rules.summary.rateLimitIp", { path: nextPathPrefix || "/api/login" }))
+      } else {
+        setRuleSummary(t("page.rules.summary.rateLimitUser", { path: nextPathPrefix || "/api/login" }))
+      }
+    }
+  }
+
+  useEffect(() => {
+    syncGeneratedFields(selectedPlaybook, selectedHostItem?.host ?? selectedHost ?? undefined, pathPrefixValue)
+  }, [selectedPlaybook, selectedHostItem?.host, selectedHost, pathPrefixValue])
 
   const handleMoreFilters = () => {
     toast.message(t("page.rules.toast.filterHelp"))
   }
 
-  const handleCreateRule = () => {
-    toast.success(t("page.rules.toast.createSuccess"))
-    setIsCreateOpen(false)
-    setDraftRuleName("")
-    setDraftRuleSummary("")
-    setDraftRuleScope("subject + path")
+  const handleCopyCaddy = async () => {
+    await navigator.clipboard.writeText(caddySnippet)
+    toast.success(t("page.rules.toast.caddyCopied"))
+  }
+
+  const validatePayload = (): UpsertPolicyRuleRequest | null => {
+    if (!selectedHostItem?.isConnected) {
+      toast.message(t("page.rules.guideHostRequired"))
+      return null
+    }
+
+    const host = selectedHostItem.host
+
+    if (selectedPlaybook === "admin-protect") {
+      const adminPrefixes = parsePrefixes(adminPrefixesValue)
+      if (adminPrefixes.length === 0) {
+        toast.error(t("page.rules.toast.adminPrefixesRequired"))
+        return null
+      }
+
+      return buildRulePayload({
+        kind: "admin-protect",
+        name: ruleName,
+        summary: ruleSummary,
+        mode: ruleMode,
+        host,
+        adminPrefixes,
+        status: editingRuleName ? selectedRule?.status : "review",
+      })
+    }
+
+    const pathPrefix = pathPrefixValue.trim()
+    const rps = Number(rpsValue)
+    const burst = Number(burstValue)
+
+    if (!pathPrefix || !Number.isFinite(rps) || !Number.isFinite(burst) || rps <= 0 || burst <= 0) {
+      toast.error(
+        selectedPlaybook === "rate-limit-ip"
+          ? t("page.rules.toast.loginIpInvalid")
+          : t("page.rules.toast.loginUserInvalid")
+      )
+      return null
+    }
+
+    return buildRulePayload({
+      kind: selectedPlaybook,
+      name: ruleName,
+      summary: ruleSummary,
+      mode: ruleMode,
+      host,
+      pathPrefix,
+      rps,
+      burst,
+      adminPrefixes: [],
+      status: editingRuleName ? selectedRule?.status : "review",
+    })
+  }
+
+  const handleSaveRule = async () => {
+    const payload = validatePayload()
+    if (!payload) {
+      return
+    }
+
+    setIsSavingRule(true)
+
+    try {
+      const response = editingRuleName
+        ? await updateRule(editingRuleName, payload)
+        : await createRule(payload)
+      setData(response.data)
+      setSelectedRuleName(payload.name ?? editingRuleName ?? null)
+      setIsCreateOpen(false)
+      toast.success(editingRuleName ? t("page.rules.toast.updateSuccess") : t("page.rules.toast.createSuccess"))
+      await loadEvents()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("page.rules.toast.ruleSaveError"))
+    } finally {
+      setIsSavingRule(false)
+    }
+  }
+
+  const handleDeleteRule = async () => {
+    if (!editingRuleName) {
+      return
+    }
+
+    setIsDeletingRule(true)
+
+    try {
+      await deleteRule(editingRuleName)
+      toast.success(t("page.rules.toast.deleteSuccess"))
+      setIsCreateOpen(false)
+      setSelectedRuleName(null)
+      await Promise.all([loadRules(), loadEvents()])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("page.rules.toast.deleteError"))
+    } finally {
+      setIsDeletingRule(false)
+    }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title={t("page.rules.title")}
         description={t("page.rules.description")}
         actions={
-          <Button size="sm" className="h-8" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            {t("page.rules.create")}
-          </Button>
+          <>
+            <Button variant="outline" size="sm" className="h-9 rounded-lg px-2.5" asChild>
+              <a href={githubUrl} target="_blank" rel="noreferrer">
+                <Github className="h-4 w-4" />
+                <span className="sr-only">{t("page.rules.github")}</span>
+              </a>
+            </Button>
+            <Button size="sm" className="h-9 rounded-lg" onClick={openCreateDialog}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              {t("page.rules.create")}
+            </Button>
+          </>
         }
       />
 
@@ -119,77 +525,373 @@ export default function RulesPage() {
         ))}
       </MetricsGrid>
 
-      <FilterBar
-        filters={filters}
-        onFilterChange={setActiveFilter}
-        searchPlaceholder={t("page.rules.search")}
-        onSearch={setSearchValue}
-        onExtraAction={handleMoreFilters}
-      />
+      <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Compass className="h-4 w-4 text-foreground" />
+                <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                  {t("page.rules.hostCoverageTitle")}
+                </h2>
+              </div>
+              <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                {t("page.rules.hostCoverageDescription")}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {hostInventory.map((item) => (
+                <button
+                  key={item.host}
+                  type="button"
+                  onClick={() => setSelectedHost(item.host)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                    selectedHostItem?.host === item.host
+                      ? "border-foreground bg-foreground text-background"
+                      : item.isConnected
+                        ? "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
+                        : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15"
+                  )}
+                >
+                  <span className="font-mono">{item.host}</span>
+                  <span className="text-[10px] opacity-80">
+                    {item.isConnected ? t("page.rules.hostProtected") : t("page.rules.hostCaddyOnly")}
+                  </span>
+                </button>
+              ))}
+              {hostInventory.length === 0 ? (
+                <span className="text-sm text-muted-foreground">{t("page.rules.guideNoHosts")}</span>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
+              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                {t("page.rules.hostProtected")}
+              </div>
+              <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                {protectedHostCount}
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t("page.rules.hostProtectedCount", { count: protectedHostCount })}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
+              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                {t("page.rules.hostCaddyOnly")}
+              </div>
+              <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                {caddyOnlyHostCount}
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {t("page.rules.hostCaddyOnlyCount", { count: caddyOnlyHostCount })}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.95fr)]">
+        <div className="space-y-6">
+          <FilterBar
+            filters={filters}
+            onFilterChange={(value) => setActiveFilter(value as RuleFilter)}
+            searchPlaceholder={t("page.rules.search")}
+            onSearch={setSearchValue}
+            onExtraAction={handleMoreFilters}
+          />
+
           <PolicyTableCard
             rules={rules}
             title={t("page.rules.title")}
+            selectedRuleId={selectedRule?.id ?? null}
             onRuleClick={(rule) => setSelectedRuleName(rule.name)}
           />
         </div>
-        <div>
-          <DetailListCard
-            details={selectedDetails}
-            title={t("page.rules.details")}
-          />
+
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold tracking-tight text-foreground">
+                  {t("page.rules.guideTitle")}
+                </div>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  {t("page.rules.guideDescription")}
+                </p>
+              </div>
+              <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                <div className="text-sm font-medium text-foreground">{t("page.rules.guideModelTitle")}</div>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {t("page.rules.guideModelDescription")}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={() => void handleCopyCaddy()}>
+                    <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                    {t("page.rules.guideCopyCaddy")}
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 rounded-lg" asChild>
+                    <a href={githubUrl} target="_blank" rel="noreferrer">
+                      <Github className="h-3.5 w-3.5 mr-1.5" />
+                      {t("page.rules.githubDocs")}
+                    </a>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-foreground">{t("page.rules.guidePlaybookTitle")}</div>
+                <div className="grid gap-3">
+                  {playbooks.map((playbook) => (
+                    <button
+                      key={playbook.kind}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPlaybook(playbook.kind)
+                        resetForm(playbook.kind, selectedHostItem?.host)
+                        setIsCreateOpen(true)
+                      }}
+                      className="rounded-xl border border-border/70 bg-background p-4 text-left transition-colors hover:bg-muted/20"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold text-foreground">{playbook.title}</div>
+                        <Badge variant="outline" className="min-h-6 rounded-full text-[11px]">
+                          {playbook.status}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{playbook.summary}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedRule ? (
+                <div className="rounded-xl border border-border/70 bg-background p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{t("page.rules.detail.quickActions")}</div>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        {t("page.rules.detail.quickActionsDescription")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={() => openEditDialog(selectedRule)}>
+                        <PencilLine className="h-3.5 w-3.5 mr-1.5" />
+                        {t("page.rules.edit")}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <DetailListCard details={selectedDetails} title={t("page.rules.details")} />
         </div>
       </div>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{t("page.rules.createDialogTitle")}</DialogTitle>
+            <DialogTitle>
+              {editingRuleName ? t("page.rules.editTitle") : t("page.rules.createTitle")}
+            </DialogTitle>
             <DialogDescription>
-              {t("page.rules.createDialogDescription")}
+              {editingRuleName ? t("page.rules.editDescription") : t("page.rules.createDescription")}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>{t("page.rules.createRuleName")}</Label>
-              <Input
-                value={draftRuleName}
-                onChange={(event) => setDraftRuleName(event.target.value)}
-                placeholder="protect-admin-surface-v3"
-              />
+          <div className="space-y-5">
+            <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <div className="text-sm font-medium text-foreground">{t("page.rules.ruleExplainTitle")}</div>
+              <div className="mt-3 space-y-4">
+                <div className="rounded-lg border border-border/70 bg-background px-3 py-3">
+                  <div className="text-sm font-semibold text-foreground">{selectedPlaybookDetail.title}</div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                        {t("page.rules.ruleExplainPurpose")}
+                      </div>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{selectedPlaybookDetail.purpose}</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                        {t("page.rules.ruleExplainWhen")}
+                      </div>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{selectedPlaybookDetail.when}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                    {t("page.rules.ruleExplainFields")}
+                  </div>
+                  <div className="grid gap-2">
+                    {selectedPlaybookDetail.fields.map((field) => (
+                      <div key={field.name} className="rounded-lg border border-border/70 bg-background px-3 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm font-medium text-foreground">{field.name}</div>
+                          <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                            {field.example}
+                          </code>
+                        </div>
+                        <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
+                          {field.description}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>{t("page.rules.createScope")}</Label>
-              <Input
-                value={draftRuleScope}
-                onChange={(event) => setDraftRuleScope(event.target.value)}
-                placeholder="subject + path"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t("page.rules.createSummary")}</Label>
-              <Textarea
-                rows={5}
-                value={draftRuleSummary}
-                onChange={(event) => setDraftRuleSummary(event.target.value)}
-                placeholder={t("page.rules.createSummaryPlaceholder")}
-              />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{t("page.rules.ruleForm.playbook")}</Label>
+                <div className="grid gap-2">
+                  {playbooks.map((playbook) => (
+                    <button
+                      key={playbook.kind}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPlaybook(playbook.kind)
+                        resetForm(playbook.kind, selectedHostItem?.host)
+                      }}
+                      className={cn(
+                        "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                        selectedPlaybook === playbook.kind
+                          ? "border-foreground bg-muted/40"
+                          : "border-border/70 bg-background hover:bg-muted/20"
+                      )}
+                    >
+                      <div className="text-sm font-medium text-foreground">{playbook.title}</div>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{playbook.summary}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-xl border border-border/70 bg-background p-4">
+                <div className="space-y-2">
+                  <Label>{t("page.rules.ruleForm.host")}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {hostInventory.map((item) => (
+                      <button
+                        key={`dialog-${item.host}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedHost(item.host)
+                          syncGeneratedFields(selectedPlaybook, item.host, pathPrefixValue)
+                        }}
+                        className={cn(
+                          "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                          selectedHostItem?.host === item.host
+                            ? "border-foreground bg-foreground text-background"
+                            : item.isConnected
+                              ? "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
+                              : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15"
+                        )}
+                      >
+                        <span className="font-mono">{item.host}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {selectedHostItem?.isConnected ? t("page.rules.guideProtectedHint") : t("page.rules.guideCaddyOnlyHint")}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{t("page.rules.ruleForm.name")}</Label>
+                  <Input value={ruleName} onChange={(event) => setRuleName(event.target.value)} placeholder="admin-protect-accounts-init-cool" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{t("page.rules.ruleForm.summary")}</Label>
+                  <Textarea rows={3} value={ruleSummary} onChange={(event) => setRuleSummary(event.target.value)} placeholder={t("page.rules.createSummaryPlaceholder")} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{t("page.rules.ruleForm.mode")}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(["shadow", "enforce"] as const).map((mode) => (
+                      <Button
+                        key={mode}
+                        type="button"
+                        variant={ruleMode === mode ? "secondary" : "outline"}
+                        size="sm"
+                        className="h-8 rounded-lg"
+                        onClick={() => setRuleMode(mode)}
+                      >
+                        {mode === "shadow" ? t("component.policy.mode.shadow") : t("component.policy.mode.enforce")}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{t("page.rules.ruleForm.modeHint")}</p>
+                </div>
+
+                {selectedPlaybook === "admin-protect" ? (
+                  <div className="space-y-2">
+                    <Label>{t("page.rules.ruleForm.adminPrefixes")}</Label>
+                    <Textarea
+                      rows={6}
+                      value={adminPrefixesValue}
+                      onChange={(event) => setAdminPrefixesValue(event.target.value)}
+                      placeholder="/admin&#10;/dashboard/admin"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>{t("page.rules.ruleForm.pathPrefix")}</Label>
+                      <Input
+                        value={pathPrefixValue}
+                        onChange={(event) => {
+                          setPathPrefixValue(event.target.value)
+                          syncGeneratedFields(selectedPlaybook, selectedHostItem?.host, event.target.value)
+                        }}
+                        placeholder="/api/login"
+                      />
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>{t("page.rules.ruleForm.rps")}</Label>
+                        <Input type="number" min="1" value={rpsValue} onChange={(event) => setRpsValue(event.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("page.rules.ruleForm.burst")}</Label>
+                        <Input type="number" min="1" value={burstValue} onChange={(event) => setBurstValue(event.target.value)} />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-              {t("page.rules.cancel")}
-            </Button>
-            <Button
-              onClick={handleCreateRule}
-              disabled={!draftRuleName.trim() || !draftRuleSummary.trim()}
-            >
-              {t("page.rules.createDraft")}
-            </Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+            <div>
+              {editingRuleName ? (
+                <Button variant="outline" onClick={() => void handleDeleteRule()} disabled={isDeletingRule || isSavingRule}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  {isDeletingRule ? t("page.rules.deleting") : t("page.rules.delete")}
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                {t("page.rules.cancel")}
+              </Button>
+              <Button onClick={() => void handleSaveRule()} disabled={isSavingRule || !selectedHostItem?.isConnected}>
+                {isSavingRule ? t("common.saving") : editingRuleName ? t("page.rules.saveChanges") : t("page.rules.createDraft")}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

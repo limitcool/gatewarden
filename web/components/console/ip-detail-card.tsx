@@ -75,10 +75,9 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
   const threatConfig = ipInfo.threatLevel ? threatLevelConfig[ipInfo.threatLevel] : null
 
   return (
-    <div className={cn("rounded-lg border border-border bg-card", className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">{t("component.ip.title")}</h3>
+    <div className={cn("overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm", className)}>
+      <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">{t("component.ip.title")}</h3>
         <div className="flex items-center gap-2">
           {onViewHistory && (
             <Button variant="ghost" size="pill" onClick={onViewHistory}>
@@ -95,77 +94,72 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* IP 地址 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      <div className="space-y-4 p-4">
+        <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
             <code className={cn(
-              "text-lg font-mono font-medium",
+                "truncate text-lg font-mono font-medium text-foreground",
               ipInfo.version === "IPv6" ? "text-sm" : ""
             )}>
               {ipInfo.ip}
             </code>
-            <Badge variant="outline" className="text-[10px] h-5">
+              <Badge variant="outline" className="min-h-6 text-[10px]">
               {ipInfo.version}
             </Badge>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={copyIP} disabled={!hasValidIp}>
-            <Copy className={cn("h-3.5 w-3.5", copied && "text-status-active")} />
-          </Button>
-        </div>
-
-        {/* 威胁等级 */}
-        {threatConfig && (
-          <div className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md border",
-            threatConfig.className
-          )}>
-            <AlertTriangle className="h-4 w-4" />
-            <span className="text-sm font-medium">{t(threatConfig.labelKey)}</span>
+            <Button variant="ghost" size="sm" className="h-8 w-8 rounded-lg p-0" onClick={copyIP} disabled={!hasValidIp}>
+              <Copy className={cn("h-3.5 w-3.5", copied && "text-status-active")} />
+            </Button>
           </div>
-        )}
 
-        {/* 代理检测标签 */}
-        {(ipInfo.isProxy || ipInfo.isVPN || ipInfo.isTor || ipInfo.isDatacenter || ipInfo.isBot) && (
-          <div className="flex flex-wrap gap-1.5">
-            {ipInfo.isProxy && (
+          {threatConfig ? (
+            <div className={cn("mt-4 flex items-center gap-2 rounded-lg border px-3 py-2", threatConfig.className)}>
+              <AlertTriangle className="h-4 w-4" />
+              <span className="text-sm font-medium">{t(threatConfig.labelKey)}</span>
+            </div>
+          ) : null}
+
+          {(ipInfo.isProxy || ipInfo.isVPN || ipInfo.isTor || ipInfo.isDatacenter || ipInfo.isBot) && (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {ipInfo.isProxy && (
                 <Badge variant="secondary" className="text-[10px]">
                   <Wifi className="h-3 w-3 mr-1" />
                   {t("component.ip.proxy")}
                 </Badge>
               )}
-            {ipInfo.isVPN && (
-              <Badge variant="secondary" className="text-[10px]">
-                <Shield className="h-3 w-3 mr-1" />
-                VPN
-              </Badge>
-            )}
-            {ipInfo.isTor && (
+              {ipInfo.isVPN && (
+                <Badge variant="secondary" className="text-[10px]">
+                  <Shield className="h-3 w-3 mr-1" />
+                  VPN
+                </Badge>
+              )}
+              {ipInfo.isTor && (
                 <Badge variant="destructive" className="text-[10px]">
-                {t("component.ip.torExit")}
+                  {t("component.ip.torExit")}
                 </Badge>
               )}
               {ipInfo.isDatacenter && (
                 <Badge variant="secondary" className="text-[10px]">
                   <Server className="h-3 w-3 mr-1" />
-                {t("component.ip.datacenter")}
+                  {t("component.ip.datacenter")}
                 </Badge>
               )}
               {ipInfo.isBot && (
                 <Badge variant="destructive" className="text-[10px]">
-                {t("component.ip.bot")}
+                  {t("component.ip.bot")}
                 </Badge>
               )}
             </div>
-        )}
+          )}
+        </div>
 
-        {/* 地理位置 */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
             <MapPin className="h-3.5 w-3.5" />
             <span>{t("component.ip.location")}</span>
           </div>
-          <div className="pl-5 space-y-1 text-sm">
+          <div className="mt-3 space-y-1.5 text-sm">
             <div className="flex items-center gap-2">
               <Globe className="h-3.5 w-3.5 text-muted-foreground" />
               <span>
@@ -186,13 +180,12 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
           </div>
         </div>
 
-        {/* 网络信息 */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
             <Building2 className="h-3.5 w-3.5" />
             <span>{t("component.ip.network")}</span>
           </div>
-          <div className="pl-5 space-y-1 text-sm">
+          <div className="mt-3 space-y-1.5 text-sm">
             {ipInfo.asn && (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-muted-foreground">{ipInfo.asn}</span>
@@ -207,40 +200,38 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
           </div>
         </div>
 
-        {/* 请求统计 */}
         {(ipInfo.requestCount !== undefined || ipInfo.lastSeen || ipInfo.firstSeen) && (
-          <div className="pt-3 border-t border-border space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+            <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
               <Clock className="h-3.5 w-3.5" />
               <span>{t("component.ip.activity")}</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               {ipInfo.requestCount !== undefined && (
-                <div>
+                <div className="rounded-lg border border-border/60 bg-background px-3 py-2.5">
                   <div className="text-xs text-muted-foreground">{t("component.ip.requestCount")}</div>
-                  <div className="font-medium">{ipInfo.requestCount.toLocaleString()}</div>
+                  <div className="mt-1 font-medium text-foreground">{ipInfo.requestCount.toLocaleString()}</div>
                 </div>
               )}
               {ipInfo.firstSeen && (
-                <div>
+                <div className="rounded-lg border border-border/60 bg-background px-3 py-2.5">
                   <div className="text-xs text-muted-foreground">{t("component.ip.firstSeen")}</div>
-                  <div className="font-medium">{ipInfo.firstSeen}</div>
+                  <div className="mt-1 font-medium text-foreground">{ipInfo.firstSeen}</div>
                 </div>
               )}
               {ipInfo.lastSeen && (
-                <div>
+                <div className="rounded-lg border border-border/60 bg-background px-3 py-2.5">
                   <div className="text-xs text-muted-foreground">{t("component.ip.lastSeen")}</div>
-                  <div className="font-medium">{ipInfo.lastSeen}</div>
+                  <div className="mt-1 font-medium text-foreground">{ipInfo.lastSeen}</div>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* 外部查询链接 */}
         {hasValidIp && (
-          <div className="pt-3 border-t border-border">
-            <Button variant="ghost" size="pill" className="w-full justify-start" asChild>
+          <div className="border-t border-border/80 pt-4">
+            <Button variant="ghost" size="pill" className="w-full justify-start rounded-lg" asChild>
               <a
                 href={`https://ipinfo.io/${ipInfo.ip}`}
                 target="_blank"

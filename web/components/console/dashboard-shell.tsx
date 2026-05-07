@@ -14,8 +14,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Mobile Sidebar Overlay */}
+    <div className="flex h-screen overflow-hidden bg-muted/30">
       {mobileSidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -23,7 +22,6 @@ export function DashboardShell({ children }: DashboardShellProps) {
         />
       )}
 
-      {/* Sidebar - Desktop */}
       <div className="hidden lg:flex">
         <AppSidebar
           collapsed={sidebarCollapsed}
@@ -31,7 +29,6 @@ export function DashboardShell({ children }: DashboardShellProps) {
         />
       </div>
 
-      {/* Sidebar - Mobile */}
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-200",
@@ -41,14 +38,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
         <AppSidebar onToggle={() => setMobileSidebarOpen(false)} />
       </div>
 
-      {/* Main Content */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar
           showMenuButton
           onMenuClick={() => setMobileSidebarOpen(true)}
         />
-        <main className="flex-1 overflow-y-auto">
-          <div className="container max-w-7xl mx-auto p-6">
+        <main className="flex-1 overflow-y-auto bg-muted/20">
+          <div className="mx-auto max-w-7xl px-5 py-6 lg:px-8 lg:py-8">
             {children}
           </div>
         </main>

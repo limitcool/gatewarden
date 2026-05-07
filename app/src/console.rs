@@ -60,11 +60,18 @@ impl ConsoleSettingsState {
 
 #[derive(Debug, Clone)]
 pub struct PolicyRuleState {
+    pub id: i32,
     pub name: String,
+    pub kind: String,
     pub summary: String,
     pub scope: String,
     pub status: String,
     pub mode: String,
+    pub host: Option<String>,
+    pub path_prefix: Option<String>,
+    pub rps: Option<u32>,
+    pub burst: Option<u32>,
+    pub admin_prefixes: Vec<String>,
     pub source: String,
     pub approved_by: Option<String>,
 }
@@ -292,31 +299,19 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
     }
 
     async fn events(&self) -> Result<ConsoleResponse<EventsOverviewDto>> {
-        let protected_hosts = self.config.security.protected_hosts.clone();
-        let protected_host_set = protected_host_set(&protected_hosts);
-        let events = self
-            .store
-            .recent_events(12)
-            .await?
-            .into_iter()
-            .filter(|entry| matches_protected_host(&entry.host, &protected_host_set))
-            .collect::<Vec<_>>();
-        let observations = self
-            .store
-            .recent_http_observations(40)
-            .await?
-            .into_iter()
-            .filter(|entry| matches_protected_host(&entry.host, &protected_host_set))
-            .collect::<Vec<_>>();
+        let events = self.store.recent_events(12).await?;
+        let observations = self.store.recent_http_observations(40).await?;
+        let connected_hosts = connected_host_list(&events);
+        let connected_host_set = host_set(&connected_hosts);
         let auth_linked = events.iter().filter(|entry| entry.subject_id.is_some()).count();
         let not_found = observations.iter().filter(|entry| entry.status_code == 404).count();
         let server_errors = observations.iter().filter(|entry| entry.status_code >= 500).count();
         let avg_latency = average_latency(&observations).unwrap_or(0);
         let observed_hosts = observed_host_list(&events, &observations);
-        let protected_hosts_label = if protected_hosts.is_empty() {
-            "all hosts".to_string()
+        let connected_hosts_label = if connected_hosts.is_empty() {
+            "none".to_string()
         } else {
-            protected_hosts.join(", ")
+            connected_hosts.join(", ")
         };
 
         Ok(ConsoleResponse {
@@ -335,18 +330,22 @@ impl ConsoleDataProvider for SeaOrmConsoleDataProvider {
                     filter("Source: live", "source:live"),
                     filter("Response: observed", "response:observed"),
                 ],
-                stream: map_recent_events_with_observations(&events, &observations, &protected_host_set),
+                stream: map_recent_events_with_observations(
+                    &events,
+                    &observations,
+                    &connected_host_set,
+                ),
                 details: vec![
                     detail("Persistence", "SeaORM + SQL", "Event stream now prefers real stored security events instead of static-only placeholders."),
                     detail("Decision posture", "Advisory first", "The product still defaults to reviewable signals before stronger enforcement."),
                     detail("HTTP observability", "Caddy JSON log", "Status codes and latency are ingested from structured access logs and correlated by request id when available."),
                     detail(
-                        "Protected hosts",
-                        &protected_hosts_label,
-                        "This view defaults to hosts that are explicitly connected to Gatewarden forward auth.",
+                        "Connected hosts",
+                        &connected_hosts_label,
+                        "Hosts with recorded Gatewarden decisions are treated as integrated. Hosts seen only in Caddy logs remain unprotected until forward_auth traffic reaches Gatewarden.",
                     ),
                 ],
-                protected_hosts,
+                protected_hosts: connected_hosts,
                 observed_hosts,
             },
         })
@@ -560,6 +559,13 @@ fn map_rules(rules: &[PolicyRuleState]) -> Vec<RuleRowDto> {
             scope: rule.scope.clone(),
             status: rule.status.clone(),
             mode: rule.mode.clone(),
+            kind: rule.kind.clone(),
+            host: rule.host.clone(),
+            path_prefix: rule.path_prefix.clone(),
+            rps: rule.rps,
+            burst: rule.burst,
+            admin_prefixes: rule.admin_prefixes.clone(),
+            source: Some(rule.source.clone()),
         })
         .collect()
 }
@@ -630,7 +636,7 @@ fn map_recent_events(entries: &[security_events::Model]) -> Vec<EventItemDto> {
 fn map_recent_events_with_observations(
     entries: &[security_events::Model],
     observations: &[HttpObservationState],
-    protected_hosts: &HashSet<String>,
+    connected_hosts: &HashSet<String>,
 ) -> Vec<EventItemDto> {
     if entries.is_empty() && observations.is_empty() {
         return vec![event_item(
@@ -681,7 +687,7 @@ fn map_recent_events_with_observations(
                 .map(|item| severity_for_status(item.status_code))
                 .unwrap_or(&entry.action),
             Some(entry.host.clone()),
-            Some(host_status(&entry.host, protected_hosts).to_string()),
+            Some(host_status(&entry.host, connected_hosts).to_string()),
             entry.subject_id.clone(),
             observation
                 .and_then(|item| item.user_agent.clone())
@@ -732,7 +738,7 @@ fn map_recent_events_with_observations(
             &subtitle,
             severity_for_status(observation.status_code),
             Some(observation.host.clone()),
-            Some(host_status(&observation.host, protected_hosts).to_string()),
+            Some(host_status(&observation.host, connected_hosts).to_string()),
             None,
             observation.user_agent.clone(),
             observation.country.clone(),
@@ -887,7 +893,7 @@ fn normalize_observation_path(path: &str) -> &str {
     path.split('?').next().unwrap_or(path)
 }
 
-fn protected_host_set(hosts: &[String]) -> HashSet<String> {
+fn host_set(hosts: &[String]) -> HashSet<String> {
     hosts
         .iter()
         .map(|host| host.trim().to_ascii_lowercase())
@@ -895,24 +901,22 @@ fn protected_host_set(hosts: &[String]) -> HashSet<String> {
         .collect()
 }
 
-fn matches_protected_host(host: &str, protected_hosts: &HashSet<String>) -> bool {
-    if protected_hosts.is_empty() {
-        return true;
-    }
-
-    protected_hosts.contains(&host.trim().to_ascii_lowercase())
-}
-
-fn host_status(host: &str, protected_hosts: &HashSet<String>) -> &'static str {
-    if protected_hosts.is_empty() {
-        return "protected";
-    }
-
-    if protected_hosts.contains(&host.trim().to_ascii_lowercase()) {
+fn host_status(host: &str, connected_hosts: &HashSet<String>) -> &'static str {
+    if connected_hosts.contains(&host.trim().to_ascii_lowercase()) {
         "protected"
     } else {
         "unprotected"
     }
+}
+
+fn connected_host_list(events: &[security_events::Model]) -> Vec<String> {
+    let mut hosts = BTreeSet::new();
+
+    for host in events.iter().map(|entry| entry.host.trim()).filter(|host| !host.is_empty()) {
+        hosts.insert(host.to_string());
+    }
+
+    hosts.into_iter().collect()
 }
 
 fn observed_host_list(

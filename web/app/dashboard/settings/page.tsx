@@ -46,6 +46,7 @@ export default function SettingsPage() {
   const [activeFilter, setActiveFilter] = useState("identity")
   const [searchValue, setSearchValue] = useState("")
   const [isPending, startTransition] = useTransition()
+  const [isLoading, setIsLoading] = useState(true)
   const [data, setData] = useState<SettingsOverviewDto | null>(null)
   const [initialConfig, setInitialConfig] = useState<AppConfigDto | null>(null)
   const [config, setConfig] = useState<AppConfigDto | null>(null)
@@ -54,11 +55,14 @@ export default function SettingsPage() {
   const [shadowModeEnabled, setShadowModeEnabled] = useState(true)
 
   const loadSettings = async () => {
+    setIsLoading(true)
     try {
       const response = await getSettingsOverview()
       setData(response.data)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("page.settings.toast.loadError"))
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -68,8 +72,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!data) return
-    setConfig(data.config)
-    setInitialConfig(data.config)
+    setConfig(data.config ?? null)
+    setInitialConfig(data.config ?? null)
     setLocale(data.settings.locale === "en" ? "en" : "zh-CN")
     setNotes(data.settings.notes)
     setShadowModeEnabled(data.settings.shadowModeEnabled)
@@ -384,22 +388,13 @@ export default function SettingsPage() {
                             <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.protectedHosts")}</h4>
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label className="text-sm">{t("page.settings.field.protectedHosts")}</Label>
-                              <Textarea
-                                rows={6}
-                                value={joinLines(config.security.protectedHosts)}
-                                onChange={(event) =>
-                                  updateConfig((current) => ({
-                                    ...current,
-                                    security: {
-                                      ...current.security,
-                                      protectedHosts: splitLines(event.target.value),
-                                    },
-                                  }))
-                                }
-                                placeholder={"init.cool\naccounts.init.cool"}
-                              />
+                            <div className="rounded-lg border border-border bg-muted/30 p-4">
+                              <div className="text-sm font-medium text-foreground">
+                                {t("page.settings.field.protectedHosts")}
+                              </div>
+                              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                                {t("page.settings.field.protectedHostsHint")}
+                              </p>
                             </div>
                             <div className="space-y-2">
                               <Label className="text-sm">{t("page.settings.field.consoleAdminGroups")}</Label>
@@ -812,8 +807,24 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
-            ) : (
+            ) : isLoading ? (
               <div className="p-6 text-sm text-muted-foreground">{t("page.settings.loading")}</div>
+            ) : (
+              <div className="space-y-4 p-6">
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="text-sm font-medium text-foreground">
+                    {t("page.settings.unavailableTitle")}
+                  </div>
+                  <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                    {t("page.settings.unavailableDescription")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-8" onClick={() => void loadSettings()}>
+                    {t("page.settings.retry")}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </div>

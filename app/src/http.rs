@@ -14,7 +14,7 @@ use axum::{
     routing::{get, post},
 };
 use ingress_api::routes;
-use ingress_api::{ExplainEventRequest, AppConfigDto};
+use ingress_api::{ExplainEventRequest, AppConfigDto, UpsertPolicyRuleRequest};
 use serde::Deserialize;
 use std::sync::RwLock;
 use serde::Serialize;
@@ -116,7 +116,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/forward-auth", get(forward_auth).post(forward_auth))
         .route(routes::DASHBOARD, get(dashboard))
         .route(routes::EVENTS, get(events))
-        .route(routes::RULES, get(rules_index))
+        .route(routes::RULES, get(rules_index).post(create_rule))
+        .route("/api/console/rules/{rule_name}", post(update_rule).delete(delete_rule))
         .route(routes::SUGGESTIONS, get(suggestions).post(refresh_suggestions))
         .route(routes::AI_EXPLAIN, post(explain_event))
         .route(routes::APPROVALS, get(approvals))
@@ -181,6 +182,88 @@ async fn suggestions(State(state): State<AppState>, headers: HeaderMap) -> impl 
         Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("suggestions load failed: {error}"),
+        )
+            .into_response(),
+    }
+}
+
+async fn create_rule(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<UpsertPolicyRuleRequest>,
+) -> impl IntoResponse {
+    if let Err(error) = state.authorize_console(&headers) {
+        return error.into_response();
+    }
+
+    let rule = match map_policy_rule_upsert(payload) {
+        Ok(rule) => rule,
+        Err(error) => return (StatusCode::BAD_REQUEST, error).into_response(),
+    };
+
+    match state.store.create_policy_rule(rule).await {
+        Ok(_) => match state.console.rules().await {
+            Ok(data) => Json(data).into_response(),
+            Err(error) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rules load failed: {error}"),
+            )
+                .into_response(),
+        },
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to create rule: {error}"),
+        )
+            .into_response(),
+    }
+}
+
+async fn update_rule(
+    State(state): State<AppState>,
+    Path(rule_name): Path<String>,
+    headers: HeaderMap,
+    Json(payload): Json<UpsertPolicyRuleRequest>,
+) -> impl IntoResponse {
+    if let Err(error) = state.authorize_console(&headers) {
+        return error.into_response();
+    }
+
+    let rule = match map_policy_rule_upsert(payload) {
+        Ok(rule) => rule,
+        Err(error) => return (StatusCode::BAD_REQUEST, error).into_response(),
+    };
+
+    match state.store.update_policy_rule(&rule_name, rule).await {
+        Ok(_) => match state.console.rules().await {
+            Ok(data) => Json(data).into_response(),
+            Err(error) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rules load failed: {error}"),
+            )
+                .into_response(),
+        },
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to update rule: {error}"),
+        )
+            .into_response(),
+    }
+}
+
+async fn delete_rule(
+    State(state): State<AppState>,
+    Path(rule_name): Path<String>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    if let Err(error) = state.authorize_console(&headers) {
+        return error.into_response();
+    }
+
+    match state.store.delete_policy_rule(&rule_name).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("failed to delete rule: {error}"),
         )
             .into_response(),
     }
@@ -514,6 +597,106 @@ fn map_app_config_dto(dto: &AppConfigDto) -> crate::config::AppConfig {
     }
 }
 
+fn map_policy_rule_upsert(payload: UpsertPolicyRuleRequest) -> Result<crate::store::PolicyRuleUpsert, String> {
+    let kind = payload.kind.trim().to_string();
+    let mode = payload.mode.trim().to_string();
+    let name = payload
+        .name
+        .unwrap_or_else(|| default_rule_name(&kind, payload.host.as_deref(), payload.path_prefix.as_deref()))
+        .trim()
+        .to_string();
+
+    if name.is_empty() {
+        return Err("rule name is required".to_string());
+    }
+    if mode.is_empty() {
+        return Err("rule mode is required".to_string());
+    }
+
+    let status = payload.status.unwrap_or_else(|| "active".to_string());
+    let source = payload.source.unwrap_or_else(|| "manual".to_string());
+    let host = payload.host.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+    let path_prefix = payload.path_prefix.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+    let admin_prefixes = payload
+        .admin_prefixes
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+
+    let (summary, scope, rps, burst) = match kind.as_str() {
+        "admin-protect" => {
+            if admin_prefixes.is_empty() {
+                return Err("admin-protect requires at least one admin prefix".to_string());
+            }
+            (
+                payload.summary.unwrap_or_else(|| "Require authenticated operator context on admin paths".to_string()),
+                "subject + path".to_string(),
+                None,
+                None,
+            )
+        }
+        "rate-limit-ip" => {
+            let path = path_prefix.clone().ok_or_else(|| "rate-limit-ip requires pathPrefix".to_string())?;
+            let rps = payload.rps.ok_or_else(|| "rate-limit-ip requires rps".to_string())?;
+            let burst = payload.burst.ok_or_else(|| "rate-limit-ip requires burst".to_string())?;
+            (
+                payload.summary.unwrap_or_else(|| format!("Token bucket on {path} keyed by client IP")),
+                "ip + path".to_string(),
+                Some(rps),
+                Some(burst),
+            )
+        }
+        "rate-limit-user" => {
+            let path = path_prefix.clone().ok_or_else(|| "rate-limit-user requires pathPrefix".to_string())?;
+            let rps = payload.rps.ok_or_else(|| "rate-limit-user requires rps".to_string())?;
+            let burst = payload.burst.ok_or_else(|| "rate-limit-user requires burst".to_string())?;
+            (
+                payload.summary.unwrap_or_else(|| format!("Token bucket on {path} keyed by authenticated subject")),
+                "subject + path".to_string(),
+                Some(rps),
+                Some(burst),
+            )
+        }
+        _ => return Err("unsupported rule kind".to_string()),
+    };
+
+    Ok(crate::store::PolicyRuleUpsert {
+        name,
+        kind,
+        summary,
+        scope,
+        status,
+        mode,
+        host,
+        path_prefix,
+        rps,
+        burst,
+        admin_prefixes,
+        source,
+    })
+}
+
+fn default_rule_name(kind: &str, host: Option<&str>, path_prefix: Option<&str>) -> String {
+    let host_part = host
+        .unwrap_or("global")
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '-' })
+        .collect::<String>();
+    let path_part = path_prefix
+        .unwrap_or("/")
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '-' })
+        .collect::<String>();
+
+    match kind {
+        "admin-protect" => format!("admin-protect-{host_part}"),
+        "rate-limit-ip" => format!("rate-limit-ip-{host_part}-{path_part}"),
+        "rate-limit-user" => format!("rate-limit-user-{host_part}-{path_part}"),
+        _ => "custom-rule".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -612,34 +795,58 @@ mod tests {
             .ensure_policy_rules(&[
                 PolicyRuleSeed {
                     name: "protect-login-ip".to_string(),
+                    kind: "rate-limit-ip".to_string(),
                     summary: "Token bucket on /api/login keyed by client IP".to_string(),
                     scope: "ip + path".to_string(),
                     status: "active".to_string(),
                     mode: "enforce".to_string(),
+                    host: None,
+                    path_prefix: Some("/api/login".to_string()),
+                    rps: Some(5),
+                    burst: Some(10),
+                    admin_prefixes: Vec::new(),
                     source: "manual".to_string(),
                 },
                 PolicyRuleSeed {
                     name: "protect-login-user".to_string(),
+                    kind: "rate-limit-user".to_string(),
                     summary: "Token bucket on /api/login keyed by authenticated subject".to_string(),
                     scope: "subject + path".to_string(),
                     status: "active".to_string(),
                     mode: "enforce".to_string(),
+                    host: None,
+                    path_prefix: Some("/api/login".to_string()),
+                    rps: Some(3),
+                    burst: Some(6),
+                    admin_prefixes: Vec::new(),
                     source: "manual".to_string(),
                 },
                 PolicyRuleSeed {
                     name: "admin-requires-auth".to_string(),
+                    kind: "admin-protect".to_string(),
                     summary: "Require authenticated operator context on /admin paths".to_string(),
                     scope: "subject + path".to_string(),
                     status: "active".to_string(),
                     mode: "shadow".to_string(),
+                    host: None,
+                    path_prefix: None,
+                    rps: None,
+                    burst: None,
+                    admin_prefixes: vec!["/admin".to_string()],
                     source: "manual".to_string(),
                 },
                 PolicyRuleSeed {
                     name: "protect-admin-surface-v2".to_string(),
+                    kind: "admin-protect".to_string(),
                     summary: "Tighten anonymous access on /admin while preserving authenticated operator traffic.".to_string(),
                     scope: "subject + path".to_string(),
                     status: "review".to_string(),
                     mode: "shadow".to_string(),
+                    host: None,
+                    path_prefix: None,
+                    rps: None,
+                    burst: None,
+                    admin_prefixes: vec!["/admin".to_string()],
                     source: "approved-ai".to_string(),
                 },
             ])

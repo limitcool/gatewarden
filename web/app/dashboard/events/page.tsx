@@ -19,7 +19,6 @@ import {
 } from "@/components/console"
 import { Activity, TrendingDown, Clock, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { buildCountryOptions, buildHostInventory, buildHostOptions, buildLiveEventStats, defaultIpInfoFromEventRows, getEventsOverview, normalizeEventRows, normalizeFilters, normalizeMetrics } from "@/lib/console-api"
 import type { EventsOverviewDto } from "@/lib/console-types"
@@ -147,11 +146,11 @@ export default function EventsPage() {
   }))
 
   const rawEventRows = useMemo(() => normalizeEventRows(data?.stream ?? [], locale), [data?.stream, locale])
-  const protectedHosts = data?.protectedHosts ?? []
+  const connectedHosts = data?.protectedHosts ?? []
   const observedHosts = data?.observedHosts ?? []
   const hostInventory = useMemo(
-    () => buildHostInventory(protectedHosts, observedHosts, rawEventRows),
-    [protectedHosts, observedHosts, rawEventRows]
+    () => buildHostInventory(connectedHosts, observedHosts, rawEventRows),
+    [connectedHosts, observedHosts, rawEventRows]
   )
   const eventRows = useMemo(() => {
     return rawEventRows.filter((event) => {
@@ -264,7 +263,7 @@ export default function EventsPage() {
   }, [rawEventRows])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title={t("page.events.title")}
         description={t("page.events.description")}
@@ -281,61 +280,99 @@ export default function EventsPage() {
       />
 
       {hostInventory.length > 0 && (
-        <div className="rounded-lg border border-border bg-card px-4 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-foreground">{t("page.events.hostInventoryTitle")}</div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {t("page.events.hostInventoryDescription")}
-              </p>
+        <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="text-sm font-semibold tracking-tight text-foreground">
+                  {t("page.events.hostInventoryTitle")}
+                </div>
+                <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                  {t("page.events.hostInventoryDescription")}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
+                <div className="flex flex-wrap gap-2">
+                  {hostInventory.map((item) => (
+                    <button
+                      key={item.host}
+                      type="button"
+                      onClick={() => handleHostChange(item.host)}
+                      className={[
+                        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                        hostFilter === item.host
+                          ? "border-foreground bg-foreground text-background"
+                          : item.isConnected
+                            ? "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
+                            : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15",
+                      ].join(" ")}
+                    >
+                      <span className="font-mono">{item.host}</span>
+                      <span className="text-[10px] opacity-80">
+                        {item.isConnected ? t("common.protected") : t("common.unprotected")}
+                      </span>
+                    </button>
+                  ))}
+                  {hostFilter !== "all" && (
+                    <Button variant="ghost" size="pill" onClick={() => handleHostChange("all")}>
+                      {t("page.events.clearHostFilter")}
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{t("page.events.hostInventoryProtected", { count: hostInventory.filter((item) => item.isProtected).length })}</span>
-              <span>·</span>
-              <span>{t("page.events.hostInventoryUnprotected", { count: hostInventory.filter((item) => !item.isProtected).length })}</span>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
+                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                  {t("common.protected")}
+                </div>
+                <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                  {hostInventory.filter((item) => item.isConnected).length}
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {t("page.events.hostInventoryProtected", {
+                    count: hostInventory.filter((item) => item.isConnected).length,
+                  })}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
+                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+                  {t("common.unprotected")}
+                </div>
+                <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                  {hostInventory.filter((item) => !item.isConnected).length}
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {t("page.events.hostInventoryUnprotected", {
+                    count: hostInventory.filter((item) => !item.isConnected).length,
+                  })}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {hostInventory.map((item) => (
-              <button
-                key={item.host}
-                type="button"
-                onClick={() => handleHostChange(item.host)}
-                className={[
-                  "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                  hostFilter === item.host
-                    ? "border-foreground bg-foreground text-background"
-                    : item.isProtected
-                      ? "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
-                      : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15",
-                ].join(" ")}
-              >
-                <span className="font-mono">{item.host}</span>
-                <span className="text-[10px] opacity-80">{item.isProtected ? t("common.protected") : t("common.unprotected")}</span>
-              </button>
-            ))}
-            {hostFilter !== "all" && (
-              <Button variant="ghost" size="pill" onClick={() => handleHostChange("all")}>
-                {t("page.events.clearHostFilter")}
-              </Button>
-            )}
           </div>
         </div>
       )}
 
-      {/* 统计大盘 */}
       {showStats && (
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="overview">{t("page.events.tab.overview")}</TabsTrigger>
-            <TabsTrigger value="traffic">{t("page.events.tab.traffic")}</TabsTrigger>
-            <TabsTrigger value="geo">{t("page.events.tab.geo")}</TabsTrigger>
-            <TabsTrigger value="threats">{t("page.events.tab.threats")}</TabsTrigger>
+          <TabsList className="mb-5 h-auto w-full justify-start rounded-xl border border-border/80 bg-card p-1 shadow-sm">
+            <TabsTrigger value="overview" className="rounded-lg px-3 py-1.5">
+              {t("page.events.tab.overview")}
+            </TabsTrigger>
+            <TabsTrigger value="traffic" className="rounded-lg px-3 py-1.5">
+              {t("page.events.tab.traffic")}
+            </TabsTrigger>
+            <TabsTrigger value="geo" className="rounded-lg px-3 py-1.5">
+              {t("page.events.tab.geo")}
+            </TabsTrigger>
+            <TabsTrigger value="threats" className="rounded-lg px-3 py-1.5">
+              {t("page.events.tab.threats")}
+            </TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="overview" className="space-y-4">
+
+          <TabsContent value="overview" className="space-y-5">
             <MetricsGrid columns={3}>
-        {normalizeMetrics(data?.metrics ?? [], locale).map((metric, index) => (
+              {normalizeMetrics(data?.metrics ?? [], locale).map((metric, index) => (
                 <MetricCard
                   key={metric.label}
                   label={metric.label}
@@ -379,11 +416,11 @@ export default function EventsPage() {
 
           <TabsContent value="traffic" className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-3">
-              <RealtimeTrafficChart 
-                data={stats.realtimeTraffic} 
+              <RealtimeTrafficChart
+                data={stats.realtimeTraffic}
                 className="lg:col-span-2"
               />
-              <IPVersionChart 
+              <IPVersionChart
                 ipv4={stats.ipVersionStats.ipv4}
                 ipv6={stats.ipVersionStats.ipv6}
               />
@@ -397,10 +434,10 @@ export default function EventsPage() {
 
           <TabsContent value="threats" className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-2">
-              <TopAttackersList 
+              <TopAttackersList
                 data={stats.topAttackers}
                 onIPClick={(ip) => {
-                  const event = rawEventRows.find(e => e.ip === ip)
+                  const event = rawEventRows.find((e) => e.ip === ip)
                   if (event) setSelectedEvent(event)
                 }}
               />
@@ -410,7 +447,6 @@ export default function EventsPage() {
         </Tabs>
       )}
 
-      {/* 高级筛选 */}
       <AdvancedFilter
         filters={filters}
         onFilterChange={setActiveFilter}
@@ -439,7 +475,6 @@ export default function EventsPage() {
         onClearAllFilters={handleClearAllFilters}
       />
 
-      {/* 事件列表和详情 */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <EventTable

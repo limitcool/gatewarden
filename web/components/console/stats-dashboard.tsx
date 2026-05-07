@@ -1,27 +1,27 @@
 "use client"
 
+import { useMemo } from "react"
 import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import {
-  AreaChart,
   Area,
-  BarChart,
+  AreaChart,
   Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from "recharts"
-import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { Minus, TrendingDown, TrendingUp } from "lucide-react"
 
-// 通用图表卡片
 interface ChartCardProps {
   title: string
   subtitle?: string
@@ -33,34 +33,58 @@ interface ChartCardProps {
   className?: string
 }
 
+function cssColor(token: string) {
+  return `var(${token})`
+}
+
+function tooltipStyle() {
+  return {
+    backgroundColor: cssColor("--card"),
+    border: `1px solid ${cssColor("--border")}`,
+    borderRadius: "12px",
+    fontSize: "12px",
+    color: cssColor("--foreground"),
+  }
+}
+
+function axisStroke() {
+  return cssColor("--border")
+}
+
+function axisTick() {
+  return { fontSize: 11, fill: cssColor("--muted-foreground") }
+}
+
 function ChartCard({ title, subtitle, trend, children, className }: ChartCardProps) {
   return (
-    <div className={cn("rounded-lg border border-border bg-card p-4", className)}>
-      <div className="flex items-start justify-between mb-4">
-        <div>
+    <section className={cn("rounded-xl border border-border bg-card p-4", className)}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="space-y-1">
           <h3 className="text-sm font-medium text-foreground">{title}</h3>
-          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
-        {trend && (
-          <div className={cn(
-            "flex items-center gap-1 text-xs font-medium px-2 py-1 rounded",
-            trend.value > 0 ? "text-status-active bg-status-active/10" : 
-            trend.value < 0 ? "text-status-error bg-status-error/10" : 
-            "text-muted-foreground bg-muted"
-          )}>
-            {trend.value > 0 ? <TrendingUp className="h-3 w-3" /> : 
-             trend.value < 0 ? <TrendingDown className="h-3 w-3" /> : 
-             <Minus className="h-3 w-3" />}
-            {trend.value > 0 ? "+" : ""}{trend.value}% {trend.label}
+        {trend ? (
+          <div
+            className={cn(
+              "inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium",
+              trend.value > 0
+                ? "border-status-active/30 bg-status-active/10 text-status-active"
+                : trend.value < 0
+                  ? "border-status-error/30 bg-status-error/10 text-status-error"
+                  : "border-border bg-muted text-muted-foreground"
+            )}
+          >
+            {trend.value > 0 ? <TrendingUp className="h-3 w-3" /> : trend.value < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+            <span>{trend.value > 0 ? "+" : ""}{trend.value}%</span>
+            <span>{trend.label}</span>
           </div>
-        )}
+        ) : null}
       </div>
       {children}
-    </div>
+    </section>
   )
 }
 
-// 请求趋势图
 interface RequestTrendChartProps {
   data: { time: string; requests: number; blocked: number }[]
   className?: string
@@ -68,6 +92,8 @@ interface RequestTrendChartProps {
 
 export function RequestTrendChart({ data, className }: RequestTrendChartProps) {
   const { t } = useI18n()
+  const tooltip = useMemo(() => tooltipStyle(), [])
+
   return (
     <ChartCard
       title={t("component.chart.requestTrend")}
@@ -75,54 +101,43 @@ export function RequestTrendChart({ data, className }: RequestTrendChartProps) {
       trend={{ value: 12, label: t("component.chart.vsYesterday") }}
       className={className}
     >
-      <div className="h-[200px]">
+      <div className="h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 10, right: 8, left: -20, bottom: 0 }}>
             <defs>
-              <linearGradient id="colorRequests" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
-                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+              <linearGradient id="gatewarden-requests" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={cssColor("--primary")} stopOpacity={0.16} />
+                <stop offset="95%" stopColor={cssColor("--primary")} stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="colorBlocked" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.2}/>
-                <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0}/>
+              <linearGradient id="gatewarden-blocked" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={cssColor("--destructive")} stopOpacity={0.16} />
+                <stop offset="95%" stopColor={cssColor("--destructive")} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis 
-              dataKey="time" 
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
+            <CartesianGrid strokeDasharray="3 3" stroke={axisStroke()} vertical={false} />
+            <XAxis dataKey="time" tick={axisTick()} axisLine={{ stroke: axisStroke() }} tickLine={false} />
+            <YAxis
+              tick={axisTick()}
+              axisLine={{ stroke: axisStroke() }}
               tickLine={false}
+              tickFormatter={(value) => (value >= 1000 ? `${value / 1000}k` : value)}
             />
-            <YAxis 
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={false}
-              tickFormatter={(value) => value >= 1000 ? `${value/1000}k` : value}
-            />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: "hsl(var(--card))", 
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-                fontSize: "12px"
-              }}
-            />
-            <Area 
-              type="monotone" 
-              dataKey="requests" 
+            <Tooltip contentStyle={tooltip} />
+            <Legend wrapperStyle={{ fontSize: "12px" }} />
+            <Area
+              type="monotone"
+              dataKey="requests"
               name={t("component.chart.totalRequests")}
-              stroke="hsl(var(--primary))" 
-              fill="url(#colorRequests)" 
+              stroke={cssColor("--primary")}
+              fill="url(#gatewarden-requests)"
               strokeWidth={2}
             />
-            <Area 
-              type="monotone" 
-              dataKey="blocked" 
+            <Area
+              type="monotone"
+              dataKey="blocked"
               name={t("component.chart.blocked")}
-              stroke="hsl(var(--destructive))" 
-              fill="url(#colorBlocked)"
+              stroke={cssColor("--destructive")}
+              fill="url(#gatewarden-blocked)"
               strokeWidth={2}
             />
           </AreaChart>
@@ -132,7 +147,6 @@ export function RequestTrendChart({ data, className }: RequestTrendChartProps) {
   )
 }
 
-// 地理分布图
 interface GeoDistributionChartProps {
   data: { country: string; code: string; requests: number; blocked: number }[]
   className?: string
@@ -140,41 +154,37 @@ interface GeoDistributionChartProps {
 
 export function GeoDistributionChart({ data, className }: GeoDistributionChartProps) {
   const { t } = useI18n()
+  const tooltip = useMemo(() => tooltipStyle(), [])
+
   return (
     <ChartCard
       title={t("component.chart.geoDistribution")}
       subtitle={t("component.chart.geoDistributionSubtitle")}
       className={className}
     >
-      <div className="h-[200px]">
+      <div className="h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={true} vertical={false} />
-            <XAxis 
-              type="number" 
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
+          <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={axisStroke()} horizontal vertical={false} />
+            <XAxis
+              type="number"
+              tick={axisTick()}
+              axisLine={{ stroke: axisStroke() }}
               tickLine={false}
-              tickFormatter={(value) => value >= 1000 ? `${value/1000}k` : value}
+              tickFormatter={(value) => (value >= 1000 ? `${value / 1000}k` : value)}
             />
-            <YAxis 
-              type="category" 
-              dataKey="country" 
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
+            <YAxis
+              type="category"
+              dataKey="country"
+              tick={axisTick()}
+              axisLine={{ stroke: axisStroke() }}
               tickLine={false}
-              width={60}
+              width={72}
             />
-            <Tooltip
-              contentStyle={{ 
-                backgroundColor: "hsl(var(--card))", 
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-                fontSize: "12px"
-              }}
-            />
-            <Bar dataKey="requests" name={t("component.chart.totalRequests")} fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-            <Bar dataKey="blocked" name={t("component.chart.blocked")} fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} />
+            <Tooltip contentStyle={tooltip} />
+            <Legend wrapperStyle={{ fontSize: "12px" }} />
+            <Bar dataKey="requests" name={t("component.chart.totalRequests")} fill={cssColor("--primary")} radius={[0, 6, 6, 0]} />
+            <Bar dataKey="blocked" name={t("component.chart.blocked")} fill={cssColor("--destructive")} radius={[0, 6, 6, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -182,7 +192,6 @@ export function GeoDistributionChart({ data, className }: GeoDistributionChartPr
   )
 }
 
-// 事件分类饼图
 interface EventCategoryChartProps {
   data: { name: string; value: number; color: string }[]
   className?: string
@@ -190,44 +199,33 @@ interface EventCategoryChartProps {
 
 export function EventCategoryChart({ data, className }: EventCategoryChartProps) {
   const { t } = useI18n()
+  const tooltip = useMemo(() => tooltipStyle(), [])
+
   return (
     <ChartCard
       title={t("component.chart.eventCategories")}
       subtitle={t("component.chart.eventCategoriesSubtitle")}
       className={className}
     >
-      <div className="h-[200px] flex items-center">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={50}
-              outerRadius={70}
-              paddingAngle={2}
-              dataKey="value"
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{ 
-                backgroundColor: "hsl(var(--card))", 
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-                fontSize: "12px"
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="flex flex-col gap-2 mr-4">
-          {data.map((item, index) => (
-            <div key={index} className="flex items-center gap-2 text-xs">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-muted-foreground">{item.name}</span>
-              <span className="font-medium ml-auto">{item.value}</span>
+      <div className="flex h-[220px] items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} cx="50%" cy="50%" innerRadius={52} outerRadius={76} paddingAngle={2} dataKey="value">
+                {data.map((entry, index) => (
+                  <Cell key={`${entry.name}-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={tooltip} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="hidden min-w-40 flex-col gap-2 sm:flex">
+          {data.map((item) => (
+            <div key={item.name} className="flex items-center gap-2 text-xs">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.name}</span>
+              <span className="font-medium text-foreground">{item.value}</span>
             </div>
           ))}
         </div>
@@ -236,7 +234,6 @@ export function EventCategoryChart({ data, className }: EventCategoryChartProps)
   )
 }
 
-// IP 版本分布
 interface IPVersionChartProps {
   ipv4: number
   ipv6: number
@@ -252,46 +249,38 @@ export function IPVersionChart({ ipv4, ipv6, className }: IPVersionChartProps) {
   return (
     <ChartCard
       title={t("component.chart.ipVersion")}
-      subtitle="IPv4 vs IPv6"
+      subtitle={t("component.chart.ipVersionSubtitle")}
       className={className}
     >
       <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="text-muted-foreground">IPv4</span>
-              <span className="font-medium">{ipv4Percent}%</span>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{t("component.chart.ipv4Label")}</span>
+              <span className="font-medium text-foreground">{ipv4Percent}%</span>
             </div>
-            <div className="h-2 bg-secondary rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary rounded-full transition-all"
-                style={{ width: `${ipv4Percent}%` }}
-              />
+            <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${ipv4Percent}%` }} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{t("component.chart.ipv6Label")}</span>
+              <span className="font-medium text-foreground">{ipv6Percent}%</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full rounded-full bg-status-info transition-[width]" style={{ width: `${ipv6Percent}%` }} />
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex-1">
-            <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="text-muted-foreground">IPv6</span>
-              <span className="font-medium">{ipv6Percent}%</span>
-            </div>
-            <div className="h-2 bg-secondary rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-status-info rounded-full transition-all"
-                style={{ width: `${ipv6Percent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="pt-2 border-t border-border grid grid-cols-2 gap-4 text-sm">
-          <div>
+        <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
             <div className="text-xs text-muted-foreground">{t("component.chart.ipv4Requests")}</div>
-            <div className="font-medium">{ipv4.toLocaleString()}</div>
+            <div className="mt-1 font-medium text-foreground">{ipv4.toLocaleString()}</div>
           </div>
-          <div>
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
             <div className="text-xs text-muted-foreground">{t("component.chart.ipv6Requests")}</div>
-            <div className="font-medium">{ipv6.toLocaleString()}</div>
+            <div className="mt-1 font-medium text-foreground">{ipv6.toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -299,7 +288,6 @@ export function IPVersionChart({ ipv4, ipv6, className }: IPVersionChartProps) {
   )
 }
 
-// 实时流量线图
 interface RealtimeTrafficChartProps {
   data: { time: string; value: number }[]
   className?: string
@@ -307,40 +295,26 @@ interface RealtimeTrafficChartProps {
 
 export function RealtimeTrafficChart({ data, className }: RealtimeTrafficChartProps) {
   const { t } = useI18n()
+  const tooltip = useMemo(() => tooltipStyle(), [])
+
   return (
     <ChartCard
       title={t("component.chart.realtimeTraffic")}
       subtitle={t("component.chart.realtimeTrafficSubtitle")}
       className={className}
     >
-      <div className="h-[120px]">
+      <div className="h-[140px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis 
-              dataKey="time" 
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={false}
-            />
-            <YAxis 
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              axisLine={{ stroke: "hsl(var(--border))" }}
-              tickLine={false}
-            />
-            <Tooltip
-              contentStyle={{ 
-                backgroundColor: "hsl(var(--card))", 
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-                fontSize: "12px"
-              }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="value" 
-              name="RPS"
-              stroke="hsl(var(--status-active))" 
+          <LineChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={axisStroke()} vertical={false} />
+            <XAxis dataKey="time" tick={axisTick()} axisLine={{ stroke: axisStroke() }} tickLine={false} />
+            <YAxis tick={axisTick()} axisLine={{ stroke: axisStroke() }} tickLine={false} />
+            <Tooltip contentStyle={tooltip} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              name={t("component.chart.rps")}
+              stroke={cssColor("--status-active")}
               strokeWidth={2}
               dot={false}
             />
@@ -351,7 +325,6 @@ export function RealtimeTrafficChart({ data, className }: RealtimeTrafficChartPr
   )
 }
 
-// Top 攻击者列表
 interface TopAttackersProps {
   data: { ip: string; version: "IPv4" | "IPv6"; country: string; requests: number; blocked: number }[]
   className?: string
@@ -360,39 +333,36 @@ interface TopAttackersProps {
 
 export function TopAttackersList({ data, className, onIPClick }: TopAttackersProps) {
   const { t } = useI18n()
+
   return (
     <ChartCard
       title={t("component.chart.topAttackers")}
       subtitle={t("component.chart.topAttackersSubtitle")}
       className={className}
     >
-      <div className="space-y-2 max-h-[200px] overflow-y-auto">
+      <div className="space-y-2">
         {data.map((item, index) => (
-          <div 
+          <button
             key={item.ip}
-            className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
+            type="button"
+            className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             onClick={() => onIPClick?.(item.ip)}
           >
-            <span className="text-xs text-muted-foreground w-4">{index + 1}</span>
-            <div className="flex-1 min-w-0">
+            <span className="w-5 shrink-0 text-xs text-muted-foreground">{index + 1}</span>
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <code className={cn(
-                  "font-mono text-sm truncate",
-                  item.version === "IPv6" && "text-xs"
-                )}>
-                  {item.ip}
-                </code>
-                <span className="text-[10px] text-muted-foreground px-1 py-0.5 bg-secondary rounded">
+                <code className={cn("min-w-0 truncate font-mono text-sm text-foreground", item.version === "IPv6" && "text-xs")}>{item.ip}</code>
+                <span className="inline-flex min-h-5 items-center rounded-full border border-border px-1.5 text-[11px] text-muted-foreground">
                   {item.version}
                 </span>
               </div>
-              <div className="text-xs text-muted-foreground">{item.country}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{item.country}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm font-medium text-destructive">{item.blocked.toLocaleString()}</div>
+              <div className="text-sm font-medium text-status-error">{item.blocked.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">{t("component.chart.blocked")}</div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </ChartCard>

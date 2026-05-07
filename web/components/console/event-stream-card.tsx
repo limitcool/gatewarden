@@ -50,9 +50,9 @@ export function EventStreamCard({
   const displayedEvents = events.slice(0, maxItems)
 
   return (
-    <div className={cn("rounded-lg border border-border bg-card", className)}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">{title ?? t("page.overview.recentEvents")}</h3>
+    <div className={cn("overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm", className)}>
+      <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title ?? t("page.overview.recentEvents")}</h3>
         <span className="text-xs text-muted-foreground">{t("common.requests", { count: events.length })}</span>
       </div>
       <div className="divide-y divide-border">
@@ -63,12 +63,12 @@ export function EventStreamCard({
           return (
             <div
               key={event.id}
-              className="flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors cursor-pointer"
+              className="flex items-start gap-3 px-4 py-3.5"
             >
               <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", config.className)} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{event.title}</p>
-                <p className="text-xs text-muted-foreground truncate">{event.subtitle}</p>
+                <p className="truncate text-sm font-medium text-foreground">{event.title}</p>
+                <p className="truncate text-xs leading-relaxed text-muted-foreground">{event.subtitle}</p>
               </div>
               {event.timestamp && (
                 <span className="text-xs text-muted-foreground shrink-0">{event.timestamp}</span>
@@ -77,7 +77,7 @@ export function EventStreamCard({
           )
         })}
         {events.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
             {t("component.eventStream.empty")}
           </div>
         )}

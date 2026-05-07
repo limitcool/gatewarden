@@ -25,22 +25,31 @@ interface FilterBarProps {
 export function FilterBar({
   filters = [],
   onFilterChange,
-  searchPlaceholder = "搜索...",
+  searchPlaceholder = "",
   onSearch,
-  extraActionLabel = "更多筛选",
+  extraActionLabel = "",
   onExtraAction,
   className,
 }: FilterBarProps) {
   const { t } = useI18n()
 
   return (
-    <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
-      <div className="flex items-center gap-2 flex-wrap">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-xl border border-border/80 bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between",
+        className
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
         {filters.map((filter) => (
           <Button
             key={filter.value}
             variant={filter.active ? "secondary" : "ghost"}
             size="pill"
+            className={cn(
+              "rounded-lg",
+              filter.active && "border border-border/80 bg-secondary text-foreground shadow-sm"
+            )}
             onClick={() => onFilterChange?.(filter.value)}
           >
             {filter.label}
@@ -54,11 +63,11 @@ export function FilterBar({
         )}
       </div>
       <div className="relative w-full sm:w-64">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder={searchPlaceholder || t("component.filter.searchPlaceholder")}
           onChange={(e) => onSearch?.(e.target.value)}
-          className="h-8 pl-8 text-sm"
+          className="h-9 rounded-lg border-border/80 bg-muted/30 pl-9 text-sm shadow-none"
         />
       </div>
     </div>

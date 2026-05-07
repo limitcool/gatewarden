@@ -38,11 +38,11 @@ export function SuggestionCard({
   const { t } = useI18n()
 
   return (
-    <div className={cn("rounded-lg border border-border bg-card", className)}>
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className={cn("overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm", className)}>
+      <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
         <div className="flex items-center gap-2">
           <Lightbulb className="h-4 w-4 text-status-warning" />
-          <h3 className="text-sm font-medium text-foreground">{title ?? t("page.suggestions.title")}</h3>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">{title ?? t("page.suggestions.title")}</h3>
         </div>
         <span className="text-xs text-muted-foreground">{t("common.suggestions", { count: suggestions.length })}</span>
       </div>
@@ -53,9 +53,9 @@ export function SuggestionCard({
             key={suggestion.id ?? suggestion.title}
             className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto]"
           >
-            <div className="min-w-0 space-y-3">
+            <div className="min-w-0 space-y-3.5">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium text-foreground">{suggestion.title}</div>
+                <div className="text-sm font-semibold text-foreground">{suggestion.title}</div>
                 <ScopeBadge variant="outline" className="rounded-full">
                   {suggestion.badge}
                 </ScopeBadge>
@@ -69,8 +69,8 @@ export function SuggestionCard({
               </p>
 
               {suggestion.evidence && suggestion.evidence.length > 0 ? (
-                <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
-                  <div className="text-[11px] font-medium text-foreground">{t("component.suggestion.evidence")}</div>
+                <div className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-3">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">{t("component.suggestion.evidence")}</div>
                   <div className="space-y-1.5">
                     {suggestion.evidence.map((item, index) => (
                       <p
@@ -85,9 +85,9 @@ export function SuggestionCard({
               ) : null}
 
               {suggestion.proposedRule ? (
-                <div className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
-                  <div className="text-[11px] font-medium text-foreground">{t("component.suggestion.proposedRule")}</div>
-                  <code className="block whitespace-pre-wrap break-all text-[11px] text-muted-foreground">
+                <div className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-3">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">{t("component.suggestion.proposedRule")}</div>
+                  <code className="block whitespace-pre-wrap break-all text-[11px] leading-relaxed text-muted-foreground">
                     {suggestion.proposedRule}
                   </code>
                 </div>
@@ -120,7 +120,7 @@ export function SuggestionCard({
         ))}
 
         {suggestions.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
             {t("component.suggestion.empty")}
           </div>
         )}

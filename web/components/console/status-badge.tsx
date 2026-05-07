@@ -46,11 +46,12 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     <Badge
       variant="outline"
       className={cn(
-        "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium",
         config.className,
         className
       )}
     >
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
       {t(config.labelKey)}
     </Badge>
   )

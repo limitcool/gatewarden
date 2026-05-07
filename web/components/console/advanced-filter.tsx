@@ -189,11 +189,11 @@ export function AdvancedFilter({
               variant={filter.active ? "secondary" : "ghost"}
               size="sm"
               onClick={() => onFilterChange?.(filter.value)}
-              className="h-8 text-xs"
+              className="text-xs"
             >
               {filter.label}
               {filter.count !== undefined && (
-                <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px] bg-muted">
+                <Badge variant="secondary" className="ml-1.5 min-h-5 px-1.5 text-[11px] bg-muted">
                   {filter.count}
                 </Badge>
               )}
@@ -210,13 +210,13 @@ export function AdvancedFilter({
               value={localSearch}
               placeholder={searchPlaceholder || t("component.filter.searchPlaceholder")}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="h-8 pl-8 pr-8 text-sm"
+              className="h-9 pl-8 pr-9 text-sm"
             />
             {localSearch && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                className="absolute right-0.5 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
                 onClick={() => handleSearchChange("")}
               >
                 <X className="h-3.5 w-3.5" />
@@ -227,7 +227,7 @@ export function AdvancedFilter({
           {/* 高级筛选 */}
           <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 text-xs">
+              <Button variant="outline" size="sm" className="text-xs">
                 <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
                 {t("component.filter.advanced")}
               </Button>
@@ -243,7 +243,7 @@ export function AdvancedFilter({
                     {t("component.filter.ipVersion")}
                   </Label>
                   <Select onValueChange={onIPVersionChange} value={ipVersionValue}>
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder={t("component.filter.ipVersionPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -263,7 +263,7 @@ export function AdvancedFilter({
                     {t("component.filter.severity")}
                   </Label>
                   <Select onValueChange={onSeverityChange} value={severityValue}>
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder={t("component.filter.severityPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -283,7 +283,7 @@ export function AdvancedFilter({
                     {t("component.filter.statusCode")}
                   </Label>
                   <Select onValueChange={onStatusCodeChange} value={statusCodeValue}>
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder={t("component.filter.statusCodePlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -304,7 +304,7 @@ export function AdvancedFilter({
                       {t("component.filter.host")}
                     </Label>
                     <Select onValueChange={onHostChange} value={hostValue}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-9 text-xs">
                         <SelectValue placeholder={t("component.filter.hostPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -327,7 +327,7 @@ export function AdvancedFilter({
                       {t("component.filter.country")}
                     </Label>
                     <Select onValueChange={onCountryChange} value={countryValue}>
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-9 text-xs">
                         <SelectValue placeholder={t("component.filter.countryPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -350,28 +350,28 @@ export function AdvancedFilter({
                       {t("component.filter.proxySignals")}
                     </Label>
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.vpn}
                           onCheckedChange={(checked) => handleProxyChange("vpn", !!checked)}
                         />
                         {t("component.filter.vpn")}
                       </label>
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.proxy}
                           onCheckedChange={(checked) => handleProxyChange("proxy", !!checked)}
                         />
                         {t("component.filter.proxy")}
                       </label>
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.tor}
                           onCheckedChange={(checked) => handleProxyChange("tor", !!checked)}
                         />
                         {t("component.filter.tor")}
                       </label>
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.datacenter}
                           onCheckedChange={(checked) => handleProxyChange("datacenter", !!checked)}
@@ -383,7 +383,7 @@ export function AdvancedFilter({
                 )}
 
                 <div className="flex justify-end pt-2 border-t border-border">
-                  <Button size="sm" className="h-7 text-xs" onClick={() => setAdvancedOpen(false)}>
+                  <Button size="sm" className="text-xs" onClick={() => setAdvancedOpen(false)}>
                     {t("common.apply")}
                   </Button>
                 </div>
@@ -396,7 +396,7 @@ export function AdvancedFilter({
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-8 w-8 p-0" 
+              className="w-9 p-0" 
               onClick={onRefresh}
               disabled={isRefreshing}
             >
@@ -412,7 +412,7 @@ export function AdvancedFilter({
           <Button
             variant={hostValue === "all" ? "secondary" : "ghost"}
             size="sm"
-            className="h-7 text-xs"
+            className="text-xs"
             onClick={() => onHostChange?.("all")}
           >
             {t("common.all")}
@@ -422,11 +422,11 @@ export function AdvancedFilter({
               key={host.value}
               size="sm"
               variant="outline"
-              className={cn("h-7 text-xs", hostButtonClassName(host.status, hostValue === host.value))}
+              className={cn("text-xs", hostButtonClassName(host.status, hostValue === host.value))}
               onClick={() => onHostChange?.(host.value)}
             >
               {host.label}
-              {host.status === "unprotected" && <span className="ml-1 text-[10px]">{t("common.unprotected")}</span>}
+              {host.status === "unprotected" && <span className="ml-1 text-[11px]">{t("common.unprotected")}</span>}
             </Button>
           ))}
         </div>
@@ -437,21 +437,21 @@ export function AdvancedFilter({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-muted-foreground">{t("common.currentFilters")}</span>
           {activeFilters.map((filter) => (
-            <Badge
+            <button
               key={filter.key}
-              variant="secondary"
-              className="text-xs h-6 gap-1 cursor-pointer hover:bg-secondary/80"
+              type="button"
+              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-transparent bg-secondary px-2.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => onRemoveFilter?.(filter.key)}
             >
               {filter.label}: {filter.value}
               <X className="h-3 w-3" />
-            </Badge>
+            </button>
           ))}
           {activeFilters.length > 1 && onClearAllFilters && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 text-xs text-muted-foreground"
+              className="text-xs text-muted-foreground"
               onClick={onClearAllFilters}
             >
               {t("common.clearAll")}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,14 @@ export function Topbar({ className, onMenuClick, showMenuButton = false }: Topba
   const { theme, setTheme } = useTheme()
   const { locale, setLocale, t } = useI18n()
   const [isSwitchingLocale, startSwitchingLocale] = useTransition()
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true)
+
+  useEffect(() => {
+    if (isNotificationsOpen) {
+      setHasUnreadNotifications(false)
+    }
+  }, [isNotificationsOpen])
 
   const handleLocaleToggle = () => {
     const nextLocale = locale === "zh-CN" ? "en" : "zh-CN"
@@ -45,21 +53,21 @@ export function Topbar({ className, onMenuClick, showMenuButton = false }: Topba
   return (
     <header
       className={cn(
-        "flex items-center justify-between h-14 px-4 border-b border-border bg-background",
+        "flex h-16 items-center justify-between border-b border-border/80 bg-background px-4 lg:px-6",
         className
       )}
     >
       <div className="flex items-center gap-4">
         {showMenuButton && (
-          <Button variant="ghost" size="sm" onClick={onMenuClick} className="h-8 w-8 p-0 lg:hidden">
+          <Button variant="ghost" size="sm" onClick={onMenuClick} className="h-9 w-9 rounded-lg p-0 lg:hidden">
             <Menu className="h-4 w-4" />
           </Button>
         )}
         <div className="relative hidden sm:block">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={t("topbar.search")}
-            className="h-8 w-64 pl-8 text-sm bg-secondary border-0"
+            className="h-9 w-72 rounded-lg border-border/80 bg-muted/40 pl-9 text-sm shadow-none"
           />
         </div>
       </div>
@@ -68,7 +76,7 @@ export function Topbar({ className, onMenuClick, showMenuButton = false }: Topba
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 min-w-12 px-2 text-xs font-medium"
+          className="h-9 min-w-12 rounded-lg border border-transparent px-2 text-xs font-medium hover:border-border/80 hover:bg-muted/50"
           onClick={handleLocaleToggle}
           disabled={isSwitchingLocale}
         >
@@ -80,7 +88,7 @@ export function Topbar({ className, onMenuClick, showMenuButton = false }: Topba
         <Button 
           variant="ghost" 
           size="sm" 
-          className="h-8 w-8 p-0 relative"
+          className="relative h-9 w-9 rounded-lg border border-transparent p-0 hover:border-border/80 hover:bg-muted/50"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >
           <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
@@ -89,18 +97,30 @@ export function Topbar({ className, onMenuClick, showMenuButton = false }: Topba
         </Button>
 
         {/* Notifications */}
-        <DropdownMenu>
+        <DropdownMenu open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
+            <Button variant="ghost" size="sm" className="relative h-9 w-9 rounded-lg border border-transparent p-0 hover:border-border/80 hover:bg-muted/50">
               <Bell className="h-4 w-4" />
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-error" />
+              {hasUnreadNotifications ? (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-error" />
+              ) : null}
               <span className="sr-only">{t("topbar.notifications")}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-              {t("topbar.notifications")}
-            </DropdownMenuLabel>
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <DropdownMenuLabel className="px-0 text-xs font-normal text-muted-foreground">
+                {t("topbar.notifications")}
+              </DropdownMenuLabel>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 rounded-md px-2 text-[11px] text-muted-foreground"
+                onClick={() => setHasUnreadNotifications(false)}
+              >
+                {locale === "zh-CN" ? "清除红点" : "Clear dot"}
+              </Button>
+            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="flex flex-col items-start gap-1 py-2">
               <span className="text-sm font-medium">{t("topbar.pendingRule")}</span>
@@ -120,11 +140,11 @@ export function Topbar({ className, onMenuClick, showMenuButton = false }: Topba
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 gap-2 px-2">
-              <div className="flex items-center justify-center h-6 w-6 rounded-full bg-muted">
-                <User className="h-3.5 w-3.5 text-muted-foreground" />
+            <Button variant="ghost" size="sm" className="h-9 gap-2 rounded-lg border border-transparent px-2 hover:border-border/80 hover:bg-muted/50">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full border border-border/70 bg-secondary/70">
+                <User className="h-3.5 w-3.5 text-foreground/80" />
               </div>
-              <span className="hidden sm:inline-block text-sm">{t("topbar.admin")}</span>
+              <span className="hidden text-sm font-medium sm:inline-block">{t("topbar.admin")}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">

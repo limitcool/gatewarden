@@ -40,11 +40,11 @@ export function ActionListCard<TItem extends ActionListItem>({
   onSecondaryAction,
 }: ActionListCardProps<TItem>) {
   return (
-    <div className={cn("rounded-lg border border-border bg-card", className)}>
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className={cn("overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm", className)}>
+      <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
         <div className="flex items-center gap-2">
           <Icon className={cn("h-4 w-4 text-muted-foreground", iconClassName)} />
-          <h3 className="text-sm font-medium text-foreground">{title}</h3>
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
         </div>
         <span className="text-xs text-muted-foreground">
           {countLabel ?? `${items.length} 条`}
@@ -57,9 +57,9 @@ export function ActionListCard<TItem extends ActionListItem>({
             key={item.id ?? item.title}
             className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto]"
           >
-            <div className="min-w-0 space-y-2">
+            <div className="min-w-0 space-y-2.5">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="min-w-0 text-sm font-medium text-foreground">
+                <div className="min-w-0 text-sm font-semibold text-foreground">
                   {item.title}
                 </div>
                 <ScopeBadge variant={item.badgeVariant ?? "default"} className="rounded-full">
@@ -95,7 +95,7 @@ export function ActionListCard<TItem extends ActionListItem>({
         ))}
 
         {items.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
             {emptyState}
           </div>
         )}

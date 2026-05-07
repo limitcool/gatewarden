@@ -24,24 +24,32 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "relative flex flex-col gap-2 p-4 rounded-lg border border-border bg-card",
+        "relative flex min-h-[148px] flex-col justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm",
         className
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-3">
+          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+            {label}
+          </span>
+          <div className="flex items-end gap-2">
+            <span className="text-3xl font-semibold tracking-tight text-foreground sm:text-[2rem]">
+              {value}
+            </span>
+            {status && <StatusBadge status={status} className="mb-1" />}
+          </div>
+        </div>
         {Icon && (
-          <Icon className="h-4 w-4 text-muted-foreground/60" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-secondary/60 text-foreground">
+            <Icon className="h-4 w-4" />
+          </div>
         )}
       </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tracking-tight text-foreground">
-          {value}
-        </span>
-        {status && <StatusBadge status={status} />}
-      </div>
       {detail && (
-        <p className="text-xs text-muted-foreground leading-relaxed">{detail}</p>
+        <p className="max-w-[30ch] text-xs leading-relaxed text-muted-foreground">
+          {detail}
+        </p>
       )}
     </div>
   )

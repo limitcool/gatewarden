@@ -23,23 +23,27 @@ export function DetailListCard({
   const { t } = useI18n()
 
   return (
-    <div className={cn("rounded-lg border border-border bg-card", className)}>
+    <div className={cn("overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm", className)}>
       {title && (
-        <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <div className="border-b border-border/80 px-4 py-3">
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
         </div>
       )}
       <div className="divide-y divide-border">
         {details.map((detail, index) => (
-          <div key={index} className="px-4 py-3 space-y-1">
-            <div className="flex items-baseline justify-between gap-4">
-              <span className="text-sm text-muted-foreground shrink-0">{detail.label}</span>
-              <span className="text-sm font-medium text-foreground text-right truncate">
+          <div key={index} className="space-y-2 px-4 py-3.5">
+            <div className="flex items-start justify-between gap-4">
+              <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+                {detail.label}
+              </span>
+              <span className="max-w-[65%] text-right text-sm font-medium leading-relaxed text-foreground break-words">
                 {detail.value}
               </span>
             </div>
             {detail.description && (
-              <p className="text-xs text-muted-foreground">{detail.description}</p>
+              <p className="max-w-[36ch] text-xs leading-relaxed text-muted-foreground">
+                {detail.description}
+              </p>
             )}
           </div>
         ))}

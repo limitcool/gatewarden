@@ -13,6 +13,13 @@ interface Rule {
   scope: string
   mode: string
   status: StatusType
+  kind: string
+  host?: string
+  pathPrefix?: string
+  rps?: number
+  burst?: number
+  adminPrefixes: string[]
+  source?: string
 }
 
 interface PolicyTableCardProps {
@@ -20,6 +27,7 @@ interface PolicyTableCardProps {
   title?: string
   className?: string
   onRuleClick?: (rule: Rule) => void
+  selectedRuleId?: string | null
 }
 
 export function PolicyTableCard({
@@ -27,6 +35,7 @@ export function PolicyTableCard({
   title,
   className,
   onRuleClick,
+  selectedRuleId,
 }: PolicyTableCardProps) {
   const { t } = useI18n()
   const modeMap: Record<string, string> = {
@@ -34,21 +43,34 @@ export function PolicyTableCard({
     shadow: t("component.policy.mode.shadow"),
     advisory: t("component.policy.mode.advisory"),
   }
+  const kindMap: Record<string, string> = {
+    "admin-protect": t("component.policy.kind.admin"),
+    "rate-limit-ip": t("component.policy.kind.rateLimitIp"),
+    "rate-limit-user": t("component.policy.kind.rateLimitUser"),
+  }
+  const sourceMap: Record<string, string> = {
+    manual: t("component.policy.source.manual"),
+    "approved-ai": t("component.policy.source.approvedAi"),
+  }
 
   return (
-    <div className={cn("rounded-lg border border-border bg-card", className)}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground">{title ?? t("page.rules.title")}</h3>
+    <div className={cn("overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm", className)}>
+      <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title ?? t("page.rules.title")}</h3>
         <span className="text-xs text-muted-foreground">{t("common.rules", { count: rules.length })}</span>
       </div>
       <div className="divide-y divide-border">
         {rules.map((rule) => (
-          <div
+          <button
             key={rule.id}
+            type="button"
             onClick={() => onRuleClick?.(rule)}
-            className="flex items-center gap-4 px-4 py-4 hover:bg-accent/50 transition-colors cursor-pointer group"
+            className={cn(
+              "group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              selectedRuleId === rule.id && "bg-muted/40"
+            )}
           >
-            <div className="flex-1 min-w-0 space-y-2">
+            <div className="min-w-0 flex-1 space-y-2.5">
               <div className="flex items-center gap-2 flex-wrap">
                 <code className="text-sm font-mono font-medium text-foreground">
                   {rule.name}
@@ -59,15 +81,42 @@ export function PolicyTableCard({
                 {rule.summary}
               </p>
               <div className="flex items-center gap-2 flex-wrap">
+                <ScopeBadge variant="outline">{kindMap[rule.kind] || rule.kind}</ScopeBadge>
                 <ScopeBadge variant="outline">{rule.scope}</ScopeBadge>
                 <ScopeBadge>{modeMap[rule.mode] || rule.mode}</ScopeBadge>
+                {rule.host ? (
+                  <ScopeBadge variant="outline" className="font-mono">
+                    {rule.host}
+                  </ScopeBadge>
+                ) : null}
+                {rule.pathPrefix ? (
+                  <ScopeBadge variant="outline" className="font-mono">
+                    {rule.pathPrefix}
+                  </ScopeBadge>
+                ) : null}
+                {!rule.pathPrefix && rule.adminPrefixes[0] ? (
+                  <ScopeBadge variant="outline" className="font-mono">
+                    {rule.adminPrefixes[0]}
+                    {rule.adminPrefixes.length > 1 ? ` +${rule.adminPrefixes.length - 1}` : ""}
+                  </ScopeBadge>
+                ) : null}
+                {rule.rps && rule.burst ? (
+                  <ScopeBadge variant="outline">
+                    {`${rule.rps} RPS / ${rule.burst} burst`}
+                  </ScopeBadge>
+                ) : null}
+                {rule.source ? (
+                  <ScopeBadge variant="outline">
+                    {sourceMap[rule.source] || rule.source}
+                  </ScopeBadge>
+                ) : null}
               </div>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-          </div>
+          </button>
         ))}
         {rules.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
             {t("component.policy.empty")}
           </div>
         )}

@@ -56,6 +56,27 @@ export interface RuleRowDto {
   scope: string
   status: string
   mode: string
+  kind: string
+  host?: string | null
+  pathPrefix?: string | null
+  rps?: number | null
+  burst?: number | null
+  adminPrefixes: string[]
+  source?: string | null
+}
+
+export interface UpsertPolicyRuleRequest {
+  name?: string
+  kind: string
+  summary?: string
+  mode: string
+  host?: string
+  pathPrefix?: string
+  rps?: number
+  burst?: number
+  adminPrefixes: string[]
+  status?: string
+  source?: string
 }
 
 export interface SuggestionItemDto {
@@ -98,7 +119,7 @@ export interface SettingsStateDto {
   locale: string
   notes: string
   shadowModeEnabled: boolean
-  rawYaml: string
+  rawYaml?: string
 }
 
 export interface AppConfigDto {
@@ -223,7 +244,7 @@ export interface SettingsOverviewDto {
   metrics: MetricDto[]
   filters: FilterChipDto[]
   settings: SettingsStateDto
-  config: AppConfigDto
+  config?: AppConfigDto
   details: DetailItemDto[]
-  configDetails: DetailItemDto[]
+  configDetails?: DetailItemDto[]
 }

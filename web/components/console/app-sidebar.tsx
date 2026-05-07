@@ -61,33 +61,36 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "flex flex-col h-full bg-sidebar border-r border-sidebar-border transition-all duration-200",
+        "flex h-full flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200",
         collapsed ? "w-16" : "w-56"
       )}
     >
-      {/* Header */}
-      <div className="flex items-center h-14 px-4 border-b border-sidebar-border">
+      <div className="flex h-16 items-center border-b border-sidebar-border px-4">
         {!collapsed && (
-          <Link href="/dashboard/default" className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-7 h-7 rounded bg-foreground">
-              <Shield className="h-4 w-4 text-background" />
+          <Link href="/dashboard/default" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+              <Shield className="h-4 w-4" />
             </div>
-            <span className="font-semibold text-sm text-sidebar-foreground tracking-tight">
-              Gatewarden
-            </span>
+            <div className="space-y-0.5">
+              <span className="block text-sm font-semibold tracking-tight text-sidebar-foreground">
+                Gatewarden
+              </span>
+              <span className="block text-[11px] text-sidebar-foreground/60">
+                AI WAF Console
+              </span>
+            </div>
           </Link>
         )}
         {collapsed && (
           <div className="flex items-center justify-center w-full">
-            <div className="flex items-center justify-center w-7 h-7 rounded bg-foreground">
-              <Shield className="h-4 w-4 text-background" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+              <Shield className="h-4 w-4" />
             </div>
           </div>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
           return (
@@ -95,11 +98,11 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                "flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-sm font-medium transition-colors",
                 collapsed && "justify-center",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  ? "border-sidebar-border bg-background text-sidebar-foreground shadow-sm"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
               )}
             >
               <item.icon className="h-4 w-4 shrink-0" />
@@ -109,14 +112,13 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-2 py-3 border-t border-sidebar-border">
+      <div className="border-t border-sidebar-border px-3 py-3">
         <Button
           variant="ghost"
           size="sm"
           onClick={onToggle}
           className={cn(
-            "w-full h-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50",
+            "h-9 w-full rounded-lg border border-transparent text-sidebar-foreground/70 hover:border-sidebar-border hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
             collapsed && "justify-center"
           )}
         >

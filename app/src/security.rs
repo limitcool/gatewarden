@@ -1,4 +1,4 @@
-use crate::console::ConsoleSettingsState;
+use crate::console::{ConsoleSettingsState, PolicyRuleState};
 use crate::config::AppConfig;
 use crate::store::{EventRecordInput, Store};
 use chrono::Utc;
@@ -8,6 +8,7 @@ use ingress_core::{CanonicalRequestContext, Decision, RequestContext};
 use ingress_gateway::{GatewayAdapter, GatewayInput, GatewayResponse};
 use ingress_policy::PolicyEngine;
 use ingress_rate_limit::{InMemoryRateLimiter, RateLimitDescriptor, RateLimitRule, RateLimitScope};
+use anyhow::Result;
 use std::{
     net::{IpAddr, Ipv4Addr},
     sync::{Arc, Mutex, RwLock},
@@ -17,7 +18,6 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct SecurityService {
     config: Arc<AppConfig>,
-    policy: Arc<IngressPolicy>,
     store: Arc<Store>,
     runtime_settings: Arc<RwLock<ConsoleSettingsState>>,
 }
@@ -30,7 +30,6 @@ impl SecurityService {
     ) -> Self {
         Self {
             config: config.clone(),
-            policy: Arc::new(IngressPolicy::from_config(config.as_ref(), runtime_settings.clone())),
             store,
             runtime_settings,
         }
@@ -50,6 +49,7 @@ impl SecurityService {
         client_ip: IpAddr,
     ) -> anyhow::Result<GatewayResponse> {
         let adapter = self.adapter();
+        let policy = self.load_policy().await?;
         let user_agent = extract_user_agent(&headers);
         let raw_request = RequestContext {
             request_id: Uuid::new_v4().to_string(),
@@ -68,7 +68,7 @@ impl SecurityService {
         };
 
         let canonical = adapter.normalize_request(GatewayInput::Request(raw_request))?;
-        let decision = self.policy.evaluate(&canonical);
+        let decision = policy.evaluate(&canonical);
         self.record_event(&canonical, &decision).await?;
         let mut response = adapter.to_gateway_response(&decision)?;
         self.attach_forwarded_identity_headers(&canonical, &mut response)?;
@@ -116,6 +116,15 @@ impl SecurityService {
         })
     }
 
+    async fn load_policy(&self) -> Result<IngressPolicy> {
+        let rules = self.store.list_policy_rules().await?;
+        Ok(IngressPolicy::from_rules(
+            rules,
+            self.runtime_settings.clone(),
+            self.config.as_ref(),
+        ))
+    }
+
     fn attach_forwarded_identity_headers(
         &self,
         request: &CanonicalRequestContext,
@@ -157,31 +166,30 @@ impl SecurityService {
 #[derive(Debug)]
 struct IngressPolicy {
     rate_limiter: Mutex<InMemoryRateLimiter>,
-    admin_shadow_prefixes: Vec<String>,
-    login_ip_rule: RateLimitRule,
-    login_user_rule: RateLimitRule,
+    rules: Vec<RuntimeRule>,
     runtime_settings: Arc<RwLock<ConsoleSettingsState>>,
+}
+
+#[derive(Debug, Clone)]
+enum RuntimeRule {
+    Admin {
+        rule_id: String,
+        host: Option<String>,
+        prefixes: Vec<String>,
+        mode: String,
+    },
+    RateLimit {
+        host: Option<String>,
+        mode: String,
+        rule: RateLimitRule,
+    },
 }
 
 impl Default for IngressPolicy {
     fn default() -> Self {
         Self {
             rate_limiter: Mutex::new(InMemoryRateLimiter::new()),
-            admin_shadow_prefixes: vec!["/admin".to_string()],
-            login_ip_rule: RateLimitRule {
-                id: "protect-login-ip".to_string(),
-                scope: RateLimitScope::Ip,
-                path_prefix: "/api/login".to_string(),
-                rps: 5,
-                burst: 10,
-            },
-            login_user_rule: RateLimitRule {
-                id: "protect-login-user".to_string(),
-                scope: RateLimitScope::User,
-                path_prefix: "/api/login".to_string(),
-                rps: 3,
-                burst: 6,
-            },
+            rules: Vec::new(),
             runtime_settings: Arc::new(RwLock::new(ConsoleSettingsState {
                 subject_header: "Remote-User".to_string(),
                 email_header: "Remote-Email".to_string(),
@@ -197,24 +205,69 @@ impl Default for IngressPolicy {
 }
 
 impl IngressPolicy {
-    fn from_config(config: &AppConfig, runtime_settings: Arc<RwLock<ConsoleSettingsState>>) -> Self {
+    fn from_rules(
+        rules: Vec<PolicyRuleState>,
+        runtime_settings: Arc<RwLock<ConsoleSettingsState>>,
+        config: &AppConfig,
+    ) -> Self {
+        let mut runtime_rules = Vec::new();
+
+        for rule in rules.into_iter().filter(|rule| rule.status.eq_ignore_ascii_case("active")) {
+            match rule.kind.as_str() {
+                "admin-protect" => {
+                    let prefixes = if rule.admin_prefixes.is_empty() {
+                        config.security.admin_shadow_prefixes.clone()
+                    } else {
+                        rule.admin_prefixes.clone()
+                    };
+                    runtime_rules.push(RuntimeRule::Admin {
+                        rule_id: rule.name,
+                        host: rule.host,
+                        prefixes,
+                        mode: rule.mode,
+                    });
+                }
+                "rate-limit-ip" => {
+                    if let (Some(path_prefix), Some(rps), Some(burst)) =
+                        (rule.path_prefix.clone(), rule.rps, rule.burst)
+                    {
+                        runtime_rules.push(RuntimeRule::RateLimit {
+                            host: rule.host,
+                            mode: rule.mode,
+                            rule: RateLimitRule {
+                                id: rule.name,
+                                scope: RateLimitScope::Ip,
+                                path_prefix,
+                                rps,
+                                burst,
+                            },
+                        });
+                    }
+                }
+                "rate-limit-user" => {
+                    if let (Some(path_prefix), Some(rps), Some(burst)) =
+                        (rule.path_prefix.clone(), rule.rps, rule.burst)
+                    {
+                        runtime_rules.push(RuntimeRule::RateLimit {
+                            host: rule.host,
+                            mode: rule.mode,
+                            rule: RateLimitRule {
+                                id: rule.name,
+                                scope: RateLimitScope::User,
+                                path_prefix,
+                                rps,
+                                burst,
+                            },
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+
         Self {
             rate_limiter: Mutex::new(InMemoryRateLimiter::new()),
-            admin_shadow_prefixes: config.security.admin_shadow_prefixes.clone(),
-            login_ip_rule: RateLimitRule {
-                id: config.security.login_ip_limit.rule_id.clone(),
-                scope: RateLimitScope::Ip,
-                path_prefix: config.security.login_ip_limit.path_prefix.clone(),
-                rps: config.security.login_ip_limit.rps,
-                burst: config.security.login_ip_limit.burst,
-            },
-            login_user_rule: RateLimitRule {
-                id: config.security.login_user_limit.rule_id.clone(),
-                scope: RateLimitScope::User,
-                path_prefix: config.security.login_user_limit.path_prefix.clone(),
-                rps: config.security.login_user_limit.rps,
-                burst: config.security.login_user_limit.burst,
-            },
+            rules: runtime_rules,
             runtime_settings,
         }
     }
@@ -227,26 +280,40 @@ impl PolicyEngine for IngressPolicy {
             .read()
             .expect("runtime settings lock poisoned")
             .shadow_mode_enabled;
-        if self
-            .admin_shadow_prefixes
-            .iter()
-            .any(|prefix| request.normalized_path.starts_with(prefix))
-            && !request.auth.is_authenticated
-        {
-            return if shadow_mode_enabled {
-                Decision::shadow("auth.required_for_admin", "admin-requires-auth")
-            } else {
-                Decision::block("auth.required_for_admin", "admin-requires-auth")
-            };
-        }
 
-        if let Some(decision) = self.check_rate_limit(request, &self.login_ip_rule) {
-            return decision;
-        }
-
-        if request.auth.is_authenticated {
-            if let Some(decision) = self.check_rate_limit(request, &self.login_user_rule) {
-                return decision;
+        for rule in &self.rules {
+            match rule {
+                RuntimeRule::Admin {
+                    rule_id,
+                    host,
+                    prefixes,
+                    mode,
+                } => {
+                    if !host_matches(host.as_deref(), request.host.as_str()) {
+                        continue;
+                    }
+                    if prefixes
+                        .iter()
+                        .any(|prefix| request.normalized_path.starts_with(prefix))
+                        && !request.auth.is_authenticated
+                    {
+                        return match effective_mode(mode, shadow_mode_enabled) {
+                            "shadow" => Decision::shadow("auth.required_for_admin", rule_id.clone()),
+                            _ => Decision::block("auth.required_for_admin", rule_id.clone()),
+                        };
+                    }
+                }
+                RuntimeRule::RateLimit { host, mode, rule } => {
+                    if !host_matches(host.as_deref(), request.host.as_str()) {
+                        continue;
+                    }
+                    if rule.scope == RateLimitScope::User && !request.auth.is_authenticated {
+                        continue;
+                    }
+                    if let Some(decision) = self.check_rate_limit(request, rule, mode, shadow_mode_enabled) {
+                        return decision;
+                    }
+                }
             }
         }
 
@@ -259,6 +326,8 @@ impl IngressPolicy {
         &self,
         request: &CanonicalRequestContext,
         rule: &RateLimitRule,
+        mode: &str,
+        shadow_mode_enabled: bool,
     ) -> Option<Decision> {
         if !rule.matches(request) {
             return None;
@@ -272,15 +341,33 @@ impl IngressPolicy {
         let snapshot = limiter.check(&descriptor, request.received_at);
 
         if snapshot.exceeded {
-            return Some(Decision::rate_limit(
-                "rate_limit.exceeded",
-                rule.id.clone(),
-                snapshot.remaining,
-                snapshot.reset_at.timestamp(),
-            ));
+            return Some(match effective_mode(mode, shadow_mode_enabled) {
+                "shadow" => Decision::shadow("rate_limit.exceeded", rule.id.clone()),
+                _ => Decision::rate_limit(
+                    "rate_limit.exceeded",
+                    rule.id.clone(),
+                    snapshot.remaining,
+                    snapshot.reset_at.timestamp(),
+                ),
+            });
         }
 
         None
+    }
+}
+
+fn effective_mode(rule_mode: &str, shadow_mode_enabled: bool) -> &'static str {
+    if rule_mode.eq_ignore_ascii_case("shadow") || shadow_mode_enabled {
+        "shadow"
+    } else {
+        "enforce"
+    }
+}
+
+fn host_matches(rule_host: Option<&str>, request_host: &str) -> bool {
+    match rule_host.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(rule_host) => rule_host.eq_ignore_ascii_case(request_host),
+        None => true,
     }
 }
 
