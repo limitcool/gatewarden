@@ -34,7 +34,6 @@ export default function EventsPage() {
   const [searchValue, setSearchValue] = useState("")
   const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [activeFilters, setActiveFilters] = useState<{ key: string; label: string; value: string }[]>([])
   const [ipVersionFilter, setIpVersionFilter] = useState("all")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [statusCodeFilter, setStatusCodeFilter] = useState("all")
@@ -48,6 +47,30 @@ export default function EventsPage() {
   })
   const [showStats, setShowStats] = useState(true)
   const [data, setData] = useState<EventsOverviewDto | null>(null)
+
+  const severityLabelMap = useMemo(
+    () => ({
+      critical: t("component.filter.severity.critical"),
+      warning: t("component.filter.severity.warning"),
+      info: t("component.filter.severity.info"),
+      success: t("component.filter.severity.success"),
+    }),
+    [t]
+  )
+
+  const statusCodeLabelMap = useMemo(
+    () => ({
+      "2xx": t("component.filter.statusCode.2xx"),
+      "4xx": t("component.filter.statusCode.4xx"),
+      "5xx": t("component.filter.statusCode.5xx"),
+      "404": t("component.filter.statusCode.404"),
+      "429": t("component.filter.statusCode.429"),
+      "500": t("component.filter.statusCode.500"),
+      "502": t("component.filter.statusCode.502"),
+      "504": t("component.filter.statusCode.504"),
+    }),
+    [t]
+  )
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -79,80 +102,22 @@ export default function EventsPage() {
 
   const handleIPVersionChange = (value: string) => {
     setIpVersionFilter(value)
-    if (value !== "all") {
-      setActiveFilters(prev => [
-        ...prev.filter(f => f.key !== "ipVersion"),
-        { key: "ipVersion", label: locale === "zh-CN" ? "IP 版本" : "IP version", value: value.toUpperCase() }
-      ])
-    } else {
-      setActiveFilters(prev => prev.filter(f => f.key !== "ipVersion"))
-    }
   }
 
   const handleSeverityChange = (value: string) => {
     setSeverityFilter(value)
-    const severityLabels: Record<string, string> = {
-      critical: locale === "zh-CN" ? "危险" : "Critical",
-      warning: locale === "zh-CN" ? "告警" : "Warning",
-      info: locale === "zh-CN" ? "信息" : "Info",
-      success: locale === "zh-CN" ? "成功" : "Success",
-    }
-    if (value !== "all") {
-      setActiveFilters(prev => [
-        ...prev.filter(f => f.key !== "severity"),
-        { key: "severity", label: locale === "zh-CN" ? "严重程度" : "Severity", value: severityLabels[value] || value }
-      ])
-    } else {
-      setActiveFilters(prev => prev.filter(f => f.key !== "severity"))
-    }
   }
 
   const handleCountryChange = (value: string) => {
     setCountryFilter(value)
-    const countryOption = buildCountryOptions(eventRows).find(c => c.value === value)
-    if (value !== "all" && countryOption) {
-      setActiveFilters(prev => [
-        ...prev.filter(f => f.key !== "country"),
-        { key: "country", label: locale === "zh-CN" ? "国家" : "Country", value: countryOption.label }
-      ])
-    } else {
-      setActiveFilters(prev => prev.filter(f => f.key !== "country"))
-    }
   }
 
   const handleHostChange = (value: string) => {
     setHostFilter(value)
-    const hostOption = buildHostOptions(rawEventRows).find((host) => host.value === value)
-    if (value !== "all" && hostOption) {
-      setActiveFilters((prev) => [
-        ...prev.filter((f) => f.key !== "host"),
-        { key: "host", label: locale === "zh-CN" ? "域名" : "Host", value: hostOption.label },
-      ])
-    } else {
-      setActiveFilters((prev) => prev.filter((f) => f.key !== "host"))
-    }
   }
 
   const handleStatusCodeChange = (value: string) => {
-    const statusLabels: Record<string, string> = {
-      "2xx": locale === "zh-CN" ? "2xx 成功" : "2xx Success",
-      "4xx": locale === "zh-CN" ? "4xx 客户端错误" : "4xx Client errors",
-      "5xx": locale === "zh-CN" ? "5xx 服务端错误" : "5xx Server errors",
-      "404": locale === "zh-CN" ? "404 未找到" : "404 Not found",
-      "429": locale === "zh-CN" ? "429 限流" : "429 Rate limited",
-      "500": locale === "zh-CN" ? "500 内部错误" : "500 Internal error",
-      "502": locale === "zh-CN" ? "502 网关错误" : "502 Gateway error",
-      "504": locale === "zh-CN" ? "504 超时" : "504 Timeout",
-    }
     setStatusCodeFilter(value)
-    if (value !== "all") {
-      setActiveFilters(prev => [
-        ...prev.filter(f => f.key !== "statusCode"),
-        { key: "statusCode", label: locale === "zh-CN" ? "状态码" : "Status code", value: statusLabels[value] || value }
-      ])
-    } else {
-      setActiveFilters(prev => prev.filter(f => f.key !== "statusCode"))
-    }
   }
 
   const handleRemoveFilter = (key: string) => {
@@ -161,11 +126,9 @@ export default function EventsPage() {
     if (key === "statusCode") setStatusCodeFilter("all")
     if (key === "host") setHostFilter("all")
     if (key === "country") setCountryFilter("all")
-    setActiveFilters(prev => prev.filter(f => f.key !== key))
   }
 
   const handleClearAllFilters = () => {
-    setActiveFilters([])
     setIpVersionFilter("all")
     setSeverityFilter("all")
     setStatusCodeFilter("all")
@@ -260,6 +223,29 @@ export default function EventsPage() {
       status: inventoryMap.get(option.value)?.status ?? "unknown",
     }))
   }, [hostInventory, rawEventRows])
+  const activeFilters = useMemo(() => {
+    const filters: { key: string; label: string; value: string }[] = []
+    const countryOption = buildCountryOptions(rawEventRows).find((option) => option.value === countryFilter)
+    const hostOption = hostOptions.find((option) => option.value === hostFilter)
+
+    if (ipVersionFilter !== "all") {
+      filters.push({ key: "ipVersion", label: t("component.filter.ipVersion"), value: ipVersionFilter.toUpperCase() })
+    }
+    if (severityFilter !== "all") {
+      filters.push({ key: "severity", label: t("component.filter.severity"), value: severityLabelMap[severityFilter as keyof typeof severityLabelMap] ?? severityFilter })
+    }
+    if (statusCodeFilter !== "all") {
+      filters.push({ key: "statusCode", label: t("component.filter.statusCode"), value: statusCodeLabelMap[statusCodeFilter as keyof typeof statusCodeLabelMap] ?? statusCodeFilter })
+    }
+    if (hostFilter !== "all" && hostOption) {
+      filters.push({ key: "host", label: t("component.filter.host"), value: hostOption.label })
+    }
+    if (countryFilter !== "all" && countryOption) {
+      filters.push({ key: "country", label: t("component.filter.country"), value: countryOption.label })
+    }
+
+    return filters
+  }, [countryFilter, hostFilter, hostOptions, ipVersionFilter, rawEventRows, severityFilter, severityLabelMap, statusCodeFilter, statusCodeLabelMap, t])
   const responseStats = useMemo(() => {
     const withResponseTime = rawEventRows.filter((row) => row.responseTime !== undefined)
     const count = withResponseTime.length

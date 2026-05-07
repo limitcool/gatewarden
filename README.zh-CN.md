@@ -99,6 +99,25 @@ Gatewarden 目前仍处于早期阶段，但已经可以作为本地或单节点
 
 ## 快速开始
 
+### Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+然后访问：
+
+```text
+http://127.0.0.1:3000
+```
+
+默认挂载：
+
+- `./gatewarden.yaml` -> `/opt/gatewarden/gatewarden.yaml`
+- `./docker-data` -> `/opt/gatewarden/app/data`
+
+默认 compose 方案使用 `./docker-data` 里的 SQLite 数据库。
+
 ### 1. 启动后端
 
 ```powershell

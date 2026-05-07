@@ -28,11 +28,11 @@ export function PolicyTableCard({
   className,
   onRuleClick,
 }: PolicyTableCardProps) {
-  const { locale, t } = useI18n()
+  const { t } = useI18n()
   const modeMap: Record<string, string> = {
-    enforce: locale === "zh-CN" ? "强制" : "Enforce",
-    shadow: locale === "zh-CN" ? "影子" : "Shadow",
-    advisory: locale === "zh-CN" ? "建议" : "Advisory",
+    enforce: t("component.policy.mode.enforce"),
+    shadow: t("component.policy.mode.shadow"),
+    advisory: t("component.policy.mode.advisory"),
   }
 
   return (

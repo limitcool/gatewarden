@@ -118,7 +118,7 @@ export function AdvancedFilter({
   onClearAllFilters,
   className,
 }: AdvancedFilterProps) {
-  const { locale, t } = useI18n()
+  const { t } = useI18n()
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [localSearch, setLocalSearch] = useState(searchValue)
 
@@ -128,22 +128,22 @@ export function AdvancedFilter({
     { label: "IPv6", value: "ipv6" },
   ]
   const defaultSeverityOptions = [
-    { label: locale === "zh-CN" ? "全部级别" : "All severities", value: "all" },
-    { label: locale === "zh-CN" ? "危险" : "Critical", value: "critical" },
-    { label: locale === "zh-CN" ? "告警" : "Warning", value: "warning" },
-    { label: locale === "zh-CN" ? "信息" : "Info", value: "info" },
-    { label: locale === "zh-CN" ? "成功" : "Success", value: "success" },
+    { label: t("component.filter.severity.all"), value: "all" },
+    { label: t("component.filter.severity.critical"), value: "critical" },
+    { label: t("component.filter.severity.warning"), value: "warning" },
+    { label: t("component.filter.severity.info"), value: "info" },
+    { label: t("component.filter.severity.success"), value: "success" },
   ]
   const defaultStatusCodeOptions = [
-    { label: locale === "zh-CN" ? "全部状态" : "All status codes", value: "all" },
-    { label: locale === "zh-CN" ? "2xx 成功" : "2xx Success", value: "2xx" },
-    { label: locale === "zh-CN" ? "4xx 客户端错误" : "4xx Client errors", value: "4xx" },
-    { label: locale === "zh-CN" ? "5xx 服务端错误" : "5xx Server errors", value: "5xx" },
-    { label: locale === "zh-CN" ? "404 未找到" : "404 Not found", value: "404" },
-    { label: locale === "zh-CN" ? "429 限流" : "429 Rate limited", value: "429" },
-    { label: locale === "zh-CN" ? "500 内部错误" : "500 Internal error", value: "500" },
-    { label: locale === "zh-CN" ? "502 网关错误" : "502 Gateway error", value: "502" },
-    { label: locale === "zh-CN" ? "504 超时" : "504 Timeout", value: "504" },
+    { label: t("component.filter.statusCode.all"), value: "all" },
+    { label: t("component.filter.statusCode.2xx"), value: "2xx" },
+    { label: t("component.filter.statusCode.4xx"), value: "4xx" },
+    { label: t("component.filter.statusCode.5xx"), value: "5xx" },
+    { label: t("component.filter.statusCode.404"), value: "404" },
+    { label: t("component.filter.statusCode.429"), value: "429" },
+    { label: t("component.filter.statusCode.500"), value: "500" },
+    { label: t("component.filter.statusCode.502"), value: "502" },
+    { label: t("component.filter.statusCode.504"), value: "504" },
   ]
 
   const resolvedIpVersionOptions = ipVersionOptions.length > 0 ? ipVersionOptions : defaultIpVersionOptions

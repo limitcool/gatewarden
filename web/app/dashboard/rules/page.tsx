@@ -75,10 +75,10 @@ export default function RulesPage() {
   const selectedRule = rules.find((rule) => rule.name === selectedRuleName) ?? rules[0]
   const selectedDetails = selectedRule
     ? [
-        { label: locale === "zh-CN" ? "规则名称" : "Rule name", value: selectedRule.name, description: locale === "zh-CN" ? "当前选中的持久化策略规则" : "The currently selected persisted policy rule" },
-        { label: locale === "zh-CN" ? "作用域" : "Scope", value: selectedRule.scope, description: locale === "zh-CN" ? "实时来自规则存储的匹配范围" : "The live matching scope from the rule store" },
-        { label: locale === "zh-CN" ? "模式" : "Mode", value: selectedRule.mode, description: locale === "zh-CN" ? "当前执行模式" : "The current execution mode" },
-        { label: locale === "zh-CN" ? "状态" : "Status", value: selectedRule.status, description: locale === "zh-CN" ? "当前审核或生效状态" : "The current review or active state" },
+        { label: t("page.rules.detail.name"), value: selectedRule.name, description: t("page.rules.detail.nameDescription") },
+        { label: t("page.rules.detail.scope"), value: selectedRule.scope, description: t("page.rules.detail.scopeDescription") },
+        { label: t("page.rules.detail.mode"), value: selectedRule.mode, description: t("page.rules.detail.modeDescription") },
+        { label: t("page.rules.detail.status"), value: selectedRule.status, description: t("page.rules.detail.statusDescription") },
       ]
     : details
 

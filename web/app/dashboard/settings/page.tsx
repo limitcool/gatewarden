@@ -75,63 +75,18 @@ export default function SettingsPage() {
     setShadowModeEnabled(data.settings.shadowModeEnabled)
   }, [data])
 
-  const text = {
-    identityFilter: currentLocale === "zh-CN" ? "身份接入" : "Identity",
-    securityFilter: currentLocale === "zh-CN" ? "安全策略" : "Security",
-    aiFilter: currentLocale === "zh-CN" ? "AI 设置" : "AI",
-    observabilityFilter: currentLocale === "zh-CN" ? "观测采集" : "Observability",
-    basics: currentLocale === "zh-CN" ? "基础运行项" : "Runtime basics",
-    consoleLanguage: currentLocale === "zh-CN" ? "控制台语言" : "Console language",
-    shadowMode: currentLocale === "zh-CN" ? "影子模式" : "Shadow mode",
-    shadowModeHint: currentLocale === "zh-CN" ? "新规则默认先进入影子模式观察命中，再决定是否强制。" : "New rules enter shadow mode first so you can observe hits before enforcing them.",
-    notes: currentLocale === "zh-CN" ? "备注信息" : "Notes",
-    identity: currentLocale === "zh-CN" ? "身份接入" : "Identity",
-    identityMode: currentLocale === "zh-CN" ? "身份模式" : "Identity mode",
-    providerHint: currentLocale === "zh-CN" ? "Provider 提示" : "Provider hint",
-    authenticatedHeader: currentLocale === "zh-CN" ? "认证状态 Header" : "Authenticated header",
-    subjectHeader: currentLocale === "zh-CN" ? "主体 Header" : "Subject header",
-    emailHeader: currentLocale === "zh-CN" ? "邮箱 Header" : "Email header",
-    groupsHeader: currentLocale === "zh-CN" ? "用户组 Header" : "Groups header",
-    providerHeader: currentLocale === "zh-CN" ? "Provider Header" : "Provider header",
-    gatewayAndDb: currentLocale === "zh-CN" ? "网关与数据库" : "Gateway and database",
-    listenAddr: currentLocale === "zh-CN" ? "监听地址" : "Listen address",
-    databaseUrl: currentLocale === "zh-CN" ? "数据库连接串" : "Database URL",
-    protectedHosts: currentLocale === "zh-CN" ? "受保护域名与管理组" : "Protected hosts and admin groups",
-    protectedHostsLabel: currentLocale === "zh-CN" ? "受保护域名" : "Protected hosts",
-    consoleAdminGroups: currentLocale === "zh-CN" ? "控制台管理组" : "Console admin groups",
-    adminProtection: currentLocale === "zh-CN" ? "管理面保护" : "Admin surface protection",
-    adminPrefixes: currentLocale === "zh-CN" ? "管理面路径前缀" : "Admin path prefixes",
-    loginIpLimit: currentLocale === "zh-CN" ? "登录 IP 限流" : "Login IP limiter",
-    loginUserLimit: currentLocale === "zh-CN" ? "登录主体限流" : "Login subject limiter",
-    ruleId: currentLocale === "zh-CN" ? "规则 ID" : "Rule ID",
-    pathPrefix: currentLocale === "zh-CN" ? "路径前缀" : "Path prefix",
-    aiProvider: currentLocale === "zh-CN" ? "AI Provider" : "AI provider",
-    aiEnabled: currentLocale === "zh-CN" ? "启用 AI 建议" : "Enable AI suggestions",
-    aiEnabledHint: currentLocale === "zh-CN" ? "控制智能建议与单事件 AI 解释能力。" : "Control AI suggestions and single-event explanations.",
-    model: currentLocale === "zh-CN" ? "模型" : "Model",
-    apiKeyEnv: currentLocale === "zh-CN" ? "API Key 环境变量" : "API key env var",
-    timeoutMs: currentLocale === "zh-CN" ? "超时 (ms)" : "Timeout (ms)",
-    observability: currentLocale === "zh-CN" ? "观测采集" : "Observability",
-    caddyLogHint: currentLocale === "zh-CN" ? "采集状态码、响应耗时、域名和 UA。" : "Capture status codes, response latency, hosts, and user agents.",
-    logPath: currentLocale === "zh-CN" ? "日志路径" : "Log path",
-    pollInterval: currentLocale === "zh-CN" ? "轮询间隔 (ms)" : "Poll interval (ms)",
-    geoHint: currentLocale === "zh-CN" ? "解析来源地区、ASN、代理属性等地理情报。" : "Resolve country, ASN, proxy, and other geo intelligence.",
-    mmdbPath: currentLocale === "zh-CN" ? "MMDB 路径" : "MMDB path",
-    configNotes: currentLocale === "zh-CN" ? "配置说明" : "Configuration notes",
-  }
-
   const filters = useMemo(
     () =>
       normalizeFilters([
-        { label: text.identityFilter, value: "identity" },
-        { label: text.securityFilter, value: "security" },
-        { label: text.aiFilter, value: "ai" },
-        { label: text.observabilityFilter, value: "observability" },
+        { label: t("page.settings.filter.identity"), value: "identity" },
+        { label: t("page.settings.filter.security"), value: "security" },
+        { label: t("page.settings.filter.ai"), value: "ai" },
+        { label: t("page.settings.filter.observability"), value: "observability" },
       ], currentLocale).map((f) => ({
         ...f,
         active: f.value === activeFilter,
       })),
-    [activeFilter, currentLocale]
+    [activeFilter, currentLocale, t]
   )
 
   const filteredDetails = normalizeDetails(
@@ -227,33 +182,33 @@ export default function SettingsPage() {
                         <section className="space-y-4">
                           <div className="flex items-center gap-2">
                             <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-                            <h4 className="text-sm font-medium text-foreground">{text.basics}</h4>
+                            <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.basics")}</h4>
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.consoleLanguage}</Label>
+                              <Label className="text-sm">{t("page.settings.field.consoleLanguage")}</Label>
                               <Select value={locale} onValueChange={(value) => setLocale(value as "en" | "zh-CN")}>
                                 <SelectTrigger className="h-9">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="zh-CN">简体中文</SelectItem>
-                                  <SelectItem value="en">English</SelectItem>
+                                  <SelectItem value="zh-CN">{t("page.settings.locale.zh-CN")}</SelectItem>
+                                  <SelectItem value="en">{t("page.settings.locale.en")}</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
                             <div className="rounded-lg border border-border bg-muted/30 p-3">
                               <div className="flex items-center justify-between gap-3">
                                 <div>
-                                  <div className="text-sm font-medium text-foreground">{text.shadowMode}</div>
-                                  <p className="mt-0.5 text-xs text-muted-foreground">{text.shadowModeHint}</p>
+                                  <div className="text-sm font-medium text-foreground">{t("page.settings.field.shadowMode")}</div>
+                                  <p className="mt-0.5 text-xs text-muted-foreground">{t("page.settings.field.shadowModeHint")}</p>
                                 </div>
                                 <Switch checked={shadowModeEnabled} onCheckedChange={setShadowModeEnabled} />
                               </div>
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-sm">{text.notes}</Label>
+                            <Label className="text-sm">{t("page.settings.field.notes")}</Label>
                             <Textarea
                               rows={4}
                               value={notes}
@@ -266,11 +221,11 @@ export default function SettingsPage() {
                         <section className="space-y-4">
                           <div className="flex items-center gap-2">
                             <Link2 className="h-4 w-4 text-muted-foreground" />
-                            <h4 className="text-sm font-medium text-foreground">{text.identity}</h4>
+                            <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.identity")}</h4>
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.identityMode}</Label>
+                              <Label className="text-sm">{t("page.settings.field.identityMode")}</Label>
                               <Input
                                 value={config.identity.mode}
                                 onChange={(event) =>
@@ -282,7 +237,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.providerHint}</Label>
+                              <Label className="text-sm">{t("page.settings.field.providerHint")}</Label>
                               <Input
                                 value={config.identity.providerHint}
                                 onChange={(event) =>
@@ -294,7 +249,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.authenticatedHeader}</Label>
+                              <Label className="text-sm">{t("page.settings.field.authenticatedHeader")}</Label>
                               <Input
                                 value={config.identity.trustedHeaders.authenticated}
                                 onChange={(event) =>
@@ -312,7 +267,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.subjectHeader}</Label>
+                              <Label className="text-sm">{t("page.settings.field.subjectHeader")}</Label>
                               <Input
                                 value={config.identity.trustedHeaders.subject}
                                 onChange={(event) =>
@@ -330,7 +285,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.emailHeader}</Label>
+                              <Label className="text-sm">{t("page.settings.field.emailHeader")}</Label>
                               <Input
                                 value={config.identity.trustedHeaders.email}
                                 onChange={(event) =>
@@ -348,7 +303,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.groupsHeader}</Label>
+                              <Label className="text-sm">{t("page.settings.field.groupsHeader")}</Label>
                               <Input
                                 value={config.identity.trustedHeaders.groups}
                                 onChange={(event) =>
@@ -366,7 +321,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2 md:col-span-2">
-                              <Label className="text-sm">{text.providerHeader}</Label>
+                              <Label className="text-sm">{t("page.settings.field.providerHeader")}</Label>
                               <Input
                                 value={config.identity.trustedHeaders.provider}
                                 onChange={(event) =>
@@ -393,11 +348,11 @@ export default function SettingsPage() {
                         <section className="space-y-4">
                           <div className="flex items-center gap-2">
                             <Radar className="h-4 w-4 text-muted-foreground" />
-                            <h4 className="text-sm font-medium text-foreground">{text.gatewayAndDb}</h4>
+                            <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.gatewayAndDb")}</h4>
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.listenAddr}</Label>
+                              <Label className="text-sm">{t("page.settings.field.listenAddr")}</Label>
                               <Input
                                 value={config.server.listenAddr}
                                 onChange={(event) =>
@@ -409,7 +364,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.databaseUrl}</Label>
+                              <Label className="text-sm">{t("page.settings.field.databaseUrl")}</Label>
                               <Input
                                 value={config.database.url}
                                 onChange={(event) =>
@@ -426,11 +381,11 @@ export default function SettingsPage() {
                         <section className="space-y-4">
                           <div className="flex items-center gap-2">
                             <Link2 className="h-4 w-4 text-muted-foreground" />
-                            <h4 className="text-sm font-medium text-foreground">{text.protectedHosts}</h4>
+                            <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.protectedHosts")}</h4>
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.protectedHostsLabel}</Label>
+                              <Label className="text-sm">{t("page.settings.field.protectedHosts")}</Label>
                               <Textarea
                                 rows={6}
                                 value={joinLines(config.security.protectedHosts)}
@@ -447,7 +402,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.consoleAdminGroups}</Label>
+                              <Label className="text-sm">{t("page.settings.field.consoleAdminGroups")}</Label>
                               <Textarea
                                 rows={6}
                                 value={joinLines(config.security.consoleAdminGroups)}
@@ -467,9 +422,9 @@ export default function SettingsPage() {
                         </section>
 
                         <section className="space-y-4">
-                          <h4 className="text-sm font-medium text-foreground">{text.adminProtection}</h4>
+                          <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.adminProtection")}</h4>
                           <div className="space-y-2">
-                            <Label className="text-sm">{text.adminPrefixes}</Label>
+                            <Label className="text-sm">{t("page.settings.field.adminPrefixes")}</Label>
                             <Textarea
                               rows={4}
                               value={joinLines(config.security.adminShadowPrefixes)}
@@ -489,7 +444,7 @@ export default function SettingsPage() {
 
                         <section className="grid gap-4 md:grid-cols-2">
                           <div className="rounded-lg border border-border p-4">
-                            <h4 className="text-sm font-medium text-foreground">{text.loginIpLimit}</h4>
+                            <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.loginIpLimit")}</h4>
                             <div className="mt-4 space-y-3">
                               <Input
                                 value={config.security.loginIpLimit.ruleId}
@@ -502,7 +457,7 @@ export default function SettingsPage() {
                                     },
                                   }))
                                 }
-                                placeholder={text.ruleId}
+                                placeholder={t("page.settings.field.ruleId")}
                               />
                               <Input
                                 value={config.security.loginIpLimit.pathPrefix}
@@ -515,7 +470,7 @@ export default function SettingsPage() {
                                     },
                                   }))
                                 }
-                                placeholder={text.pathPrefix}
+                                placeholder={t("page.settings.field.pathPrefix")}
                               />
                               <div className="grid grid-cols-2 gap-3">
                                 <Input
@@ -533,7 +488,7 @@ export default function SettingsPage() {
                                       },
                                     }))
                                   }
-                                  placeholder="RPS"
+                                  placeholder={t("page.settings.field.rps")}
                                 />
                                 <Input
                                   type="number"
@@ -550,14 +505,14 @@ export default function SettingsPage() {
                                       },
                                     }))
                                   }
-                                  placeholder="Burst"
+                                  placeholder={t("page.settings.field.burst")}
                                 />
                               </div>
                             </div>
                           </div>
 
                           <div className="rounded-lg border border-border p-4">
-                            <h4 className="text-sm font-medium text-foreground">{text.loginUserLimit}</h4>
+                            <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.loginUserLimit")}</h4>
                             <div className="mt-4 space-y-3">
                               <Input
                                 value={config.security.loginUserLimit.ruleId}
@@ -570,7 +525,7 @@ export default function SettingsPage() {
                                     },
                                   }))
                                 }
-                                placeholder={text.ruleId}
+                                placeholder={t("page.settings.field.ruleId")}
                               />
                               <Input
                                 value={config.security.loginUserLimit.pathPrefix}
@@ -583,7 +538,7 @@ export default function SettingsPage() {
                                     },
                                   }))
                                 }
-                                placeholder={text.pathPrefix}
+                                placeholder={t("page.settings.field.pathPrefix")}
                               />
                               <div className="grid grid-cols-2 gap-3">
                                 <Input
@@ -601,7 +556,7 @@ export default function SettingsPage() {
                                       },
                                     }))
                                   }
-                                  placeholder="RPS"
+                                  placeholder={t("page.settings.field.rps")}
                                 />
                                 <Input
                                   type="number"
@@ -618,7 +573,7 @@ export default function SettingsPage() {
                                       },
                                     }))
                                   }
-                                  placeholder="Burst"
+                                  placeholder={t("page.settings.field.burst")}
                                 />
                               </div>
                             </div>
@@ -631,13 +586,13 @@ export default function SettingsPage() {
                       <section className="space-y-4">
                         <div className="flex items-center gap-2">
                           <Bot className="h-4 w-4 text-muted-foreground" />
-                          <h4 className="text-sm font-medium text-foreground">{text.aiProvider}</h4>
+                          <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.aiProvider")}</h4>
                         </div>
                         <div className="rounded-lg border border-border p-4 space-y-4">
                           <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
                             <div>
-                              <div className="text-sm font-medium text-foreground">{text.aiEnabled}</div>
-                              <p className="mt-0.5 text-xs text-muted-foreground">{text.aiEnabledHint}</p>
+                              <div className="text-sm font-medium text-foreground">{t("page.settings.field.aiEnabled")}</div>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{t("page.settings.field.aiEnabledHint")}</p>
                             </div>
                             <Switch
                               checked={config.ai.enabled}
@@ -651,7 +606,7 @@ export default function SettingsPage() {
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                              <Label className="text-sm">Provider</Label>
+                              <Label className="text-sm">{t("page.settings.field.provider")}</Label>
                               <Input
                                 value={config.ai.provider}
                                 onChange={(event) =>
@@ -663,7 +618,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.model}</Label>
+                              <Label className="text-sm">{t("page.settings.field.model")}</Label>
                               <Input
                                 value={config.ai.model}
                                 onChange={(event) =>
@@ -675,7 +630,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.apiKeyEnv}</Label>
+                              <Label className="text-sm">{t("page.settings.field.apiKeyEnv")}</Label>
                               <Input
                                 value={config.ai.apiKeyEnv}
                                 onChange={(event) =>
@@ -687,7 +642,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">Base URL</Label>
+                              <Label className="text-sm">{t("page.settings.field.baseUrl")}</Label>
                               <Input
                                 value={config.ai.baseUrl ?? ""}
                                 onChange={(event) =>
@@ -703,7 +658,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.timeoutMs}</Label>
+                              <Label className="text-sm">{t("page.settings.field.timeoutMs")}</Label>
                               <Input
                                 type="number"
                                 value={config.ai.timeoutMs}
@@ -717,7 +672,7 @@ export default function SettingsPage() {
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-sm">System Prompt</Label>
+                            <Label className="text-sm">{t("page.settings.field.systemPrompt")}</Label>
                             <Textarea
                               rows={8}
                               value={config.ai.systemPrompt}
@@ -737,14 +692,14 @@ export default function SettingsPage() {
                       <section className="space-y-4">
                         <div className="flex items-center gap-2">
                           <Radar className="h-4 w-4 text-muted-foreground" />
-                          <h4 className="text-sm font-medium text-foreground">{text.observability}</h4>
+                          <h4 className="text-sm font-medium text-foreground">{t("page.settings.section.observability")}</h4>
                         </div>
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="rounded-lg border border-border p-4 space-y-4">
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="text-sm font-medium text-foreground">Caddy Access Log</div>
-                                <p className="mt-0.5 text-xs text-muted-foreground">{text.caddyLogHint}</p>
+                                <div className="text-sm font-medium text-foreground">{t("page.settings.section.caddyAccessLog")}</div>
+                                <p className="mt-0.5 text-xs text-muted-foreground">{t("page.settings.field.caddyLogHint")}</p>
                               </div>
                               <Switch
                                 checked={config.observability.caddyAccessLog.enabled}
@@ -763,7 +718,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.logPath}</Label>
+                              <Label className="text-sm">{t("page.settings.field.logPath")}</Label>
                               <Input
                                 value={config.observability.caddyAccessLog.path}
                                 onChange={(event) =>
@@ -781,7 +736,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.pollInterval}</Label>
+                              <Label className="text-sm">{t("page.settings.field.pollInterval")}</Label>
                               <Input
                                 type="number"
                                 value={config.observability.caddyAccessLog.pollIntervalMs}
@@ -804,8 +759,8 @@ export default function SettingsPage() {
                           <div className="rounded-lg border border-border p-4 space-y-4">
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="text-sm font-medium text-foreground">MMDB GeoIP</div>
-                                <p className="mt-0.5 text-xs text-muted-foreground">{text.geoHint}</p>
+                                <div className="text-sm font-medium text-foreground">{t("page.settings.section.geoip")}</div>
+                                <p className="mt-0.5 text-xs text-muted-foreground">{t("page.settings.field.geoHint")}</p>
                               </div>
                               <Switch
                                 checked={config.observability.geoip.enabled}
@@ -824,7 +779,7 @@ export default function SettingsPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-sm">{text.mmdbPath}</Label>
+                              <Label className="text-sm">{t("page.settings.field.mmdbPath")}</Label>
                               <Input
                                 value={config.observability.geoip.databasePath}
                                 onChange={(event) =>
@@ -866,7 +821,7 @@ export default function SettingsPage() {
         <div>
           <DetailListCard
             details={filteredDetails}
-            title={text.configNotes}
+            title={t("page.settings.section.configNotes")}
           />
         </div>
       </div>

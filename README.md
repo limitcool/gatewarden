@@ -99,6 +99,25 @@ Main directories:
 
 ## Quick Start
 
+### Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+Then open:
+
+```text
+http://127.0.0.1:3000
+```
+
+Default mounts:
+
+- `./gatewarden.yaml` -> `/opt/gatewarden/gatewarden.yaml`
+- `./docker-data` -> `/opt/gatewarden/app/data`
+
+The default compose setup uses SQLite inside `./docker-data`.
+
 ### 1. Start the backend
 
 ```powershell
