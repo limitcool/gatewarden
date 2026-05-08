@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.6
+
+### Fixed
+
+- Restored writable structured config persistence by moving runtime config I/O to `GATEWARDEN_CONFIG_PATH`
+- Updated container and compose defaults to use writable `/config/gatewarden.yaml` mounts
+- Removed fake filter actions from approvals, suggestions, and settings pages
+- Improved event-to-observation correlation so protected hosts can recover status code and response time even when exact request IDs do not align
+
+### Improved
+
+- Added a regression test for fallback observation correlation
+- Updated README and Docker examples to reflect the new config mount path
+- Kept the real advanced filter affordance only on the rules page where it maps to an actual action
+
 ## 0.1.4
 
 ### Added

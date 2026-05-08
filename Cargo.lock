@@ -762,7 +762,7 @@ dependencies = [
 
 [[package]]
 name = "gwaf"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-ai"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "ingress-core",
  "serde",
@@ -1145,7 +1145,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-api"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "ingress-core",
  "serde",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-caddy"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-core"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "chrono",
  "http",
@@ -1173,7 +1173,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-gateway"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "http",
@@ -1182,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "ingress-ingest"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "chrono",
  "ingress-core",
@@ -1192,14 +1192,14 @@ dependencies = [
 
 [[package]]
 name = "ingress-policy"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "ingress-core",
 ]
 
 [[package]]
 name = "ingress-rate-limit"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "chrono",
  "ingress-core",

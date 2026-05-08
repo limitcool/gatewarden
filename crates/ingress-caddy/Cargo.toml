@@ -17,5 +17,5 @@ categories = ["network-programming", "web-programming", "authentication"]
 anyhow.workspace = true
 chrono.workspace = true
 http.workspace = true
-ingress-core = { path = "../ingress-core", version = "0.1.5" }
-ingress-gateway = { path = "../ingress-gateway", version = "0.1.5" }
+ingress-core = { path = "../ingress-core", version = "0.1.6" }
+ingress-gateway = { path = "../ingress-gateway", version = "0.1.6" }
