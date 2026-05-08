@@ -19,6 +19,7 @@ interface FilterBarProps {
   onSearch?: (value: string) => void
   extraActionLabel?: string
   onExtraAction?: () => void
+  showExtraAction?: boolean
   className?: string
 }
 
@@ -29,6 +30,7 @@ export function FilterBar({
   onSearch,
   extraActionLabel = "",
   onExtraAction,
+  showExtraAction = false,
   className,
 }: FilterBarProps) {
   const { t } = useI18n()
@@ -55,7 +57,7 @@ export function FilterBar({
             {filter.label}
           </Button>
         ))}
-        {filters.length > 0 && (
+        {showExtraAction && filters.length > 0 && onExtraAction && (
           <Button variant="outline" size="pill" className="min-h-11" onClick={onExtraAction}>
             <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
             {extraActionLabel || t("common.moreFilters")}

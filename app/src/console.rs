@@ -874,23 +874,78 @@ fn find_matching_observation<'a>(
                 .unwrap_or(false)
         })
         .or_else(|| {
-            observations.iter().find(|item| {
-                item.host == entry.host
-                    && item.client_ip == entry.client_ip
-                    && item.method.eq_ignore_ascii_case(&entry.method)
-                    && normalize_observation_path(&item.path) == entry.path
-                    && item
-                        .created_at
-                        .signed_duration_since(entry.created_at)
-                        .num_seconds()
-                        .abs()
-                        <= 5
-            })
+            observations
+                .iter()
+                .filter_map(|item| observation_match_score(entry, item).map(|score| (score, item)))
+                .max_by(|left, right| left.0.cmp(&right.0))
+                .map(|(_, item)| item)
         })
 }
 
 fn normalize_observation_path(path: &str) -> &str {
     path.split('?').next().unwrap_or(path)
+}
+
+fn observation_match_score(
+    entry: &security_events::Model,
+    observation: &HttpObservationState,
+) -> Option<i64> {
+    let entry_host = entry.host.trim();
+    let observation_host = observation.host.trim();
+    if entry_host.is_empty() || observation_host.is_empty() {
+        return None;
+    }
+    if !entry_host.eq_ignore_ascii_case(observation_host) {
+        return None;
+    }
+    if !observation.method.eq_ignore_ascii_case(&entry.method) {
+        return None;
+    }
+
+    let entry_path = entry.path.trim();
+    let observation_path = normalize_observation_path(&observation.path).trim();
+    if entry_path.is_empty() || observation_path.is_empty() {
+        return None;
+    }
+    if entry_path != observation_path {
+        return None;
+    }
+
+    let age_diff_ms = observation
+        .created_at
+        .signed_duration_since(entry.created_at)
+        .num_milliseconds()
+        .abs();
+    if age_diff_ms > 15_000 {
+        return None;
+    }
+
+    let mut score = 10_000_i64 - age_diff_ms;
+
+    if observation.client_ip == entry.client_ip {
+        score += 4_000;
+    }
+
+    match (
+        observation.user_agent.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+        entry.user_agent.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+    ) {
+        (Some(left), Some(right)) if left == right => {
+            score += 2_500;
+        }
+        (Some(_), Some(_)) => {}
+        _ => {
+            score += 500;
+        }
+    }
+
+    if age_diff_ms <= 2_000 {
+        score += 1_500;
+    } else if age_diff_ms <= 5_000 {
+        score += 500;
+    }
+
+    Some(score)
 }
 
 fn host_set(hosts: &[String]) -> HashSet<String> {
@@ -1094,4 +1149,65 @@ fn mask_database_url(value: &str) -> String {
         }
     }
     value.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entities::security_events;
+    use chrono::{Duration, Utc};
+
+    #[test]
+    fn correlates_observation_without_exact_request_id() {
+        let created_at = Utc::now();
+        let event = security_events::Model {
+            id: 1,
+            created_at: created_at.into(),
+            request_id: "gw-event-id".to_string(),
+            action: "allow".to_string(),
+            reason: "policy.allow".to_string(),
+            path: "/api/login".to_string(),
+            method: "POST".to_string(),
+            client_ip: "10.0.0.2".to_string(),
+            subject_id: Some("alice".to_string()),
+            email: Some("alice@example.com".to_string()),
+            host: "accounts.init.cool".to_string(),
+            user_agent: Some("Mozilla/5.0".to_string()),
+        };
+
+        let observations = vec![HttpObservationState {
+            request_id: Some("caddy-access-id".to_string()),
+            method: "POST".to_string(),
+            path: "/api/login?next=/dashboard".to_string(),
+            host: "accounts.init.cool".to_string(),
+            client_ip: "127.0.0.1".to_string(),
+            status_code: 200,
+            duration_ms: 83,
+            upstream_duration_ms: Some(80),
+            upstream_latency_ms: Some(3),
+            service_name: Some("caddy_access_log".to_string()),
+            error_kind: None,
+            user_agent: Some("Mozilla/5.0".to_string()),
+            country: None,
+            country_code: None,
+            region: None,
+            city: None,
+            timezone: None,
+            asn: None,
+            asn_org: None,
+            isp: None,
+            is_proxy: false,
+            is_vpn: false,
+            is_tor: false,
+            is_datacenter: false,
+            created_at: created_at + Duration::milliseconds(900),
+            source: "caddy_access_log".to_string(),
+        }];
+
+        let matched = find_matching_observation(&event, &observations)
+            .expect("observation should match through fallback scoring");
+
+        assert_eq!(matched.status_code, 200);
+        assert_eq!(matched.duration_ms, 83);
+    }
 }

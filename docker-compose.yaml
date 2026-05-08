@@ -12,9 +12,14 @@ services:
       # Caddy forward_auth target on the same host.
       # Point your Caddyfile to http://127.0.0.1:4000
       - "127.0.0.1:4000:4000"
+    environment:
+      # The bundled Next.js console proxies to the local Gatewarden API.
+      CONSOLE_API_BASE_URL: http://127.0.0.1:4000
+      # Structured settings save back to this writable config file.
+      GATEWARDEN_CONFIG_PATH: /config/gatewarden.yaml
     volumes:
-      # Main runtime config.
-      # Use gatewarden.yaml to switch SQLite -> PostgreSQL, trusted headers, protected hosts, and observability.
-      - ./gatewarden.yaml:/opt/gatewarden/gatewarden.yaml:ro
+      # Main runtime config. Keep this writable so the structured settings UI
+      # can persist changes back into gatewarden.yaml.
+      - ./gatewarden.yaml:/config/gatewarden.yaml
       # SQLite DB, optional MMDB, and local runtime data.
       - ./docker-data:/opt/gatewarden/app/data

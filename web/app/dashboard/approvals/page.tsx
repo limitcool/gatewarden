@@ -111,7 +111,6 @@ export default function ApprovalsPage() {
         onFilterChange={setActiveFilter}
         searchPlaceholder={t("page.approvals.search")}
         onSearch={setSearchValue}
-        onExtraAction={() => toast.message(t("page.approvals.toast.filterHelp"))}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

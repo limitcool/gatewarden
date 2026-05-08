@@ -131,7 +131,7 @@ http://127.0.0.1:4000
 
 默认挂载：
 
-- `./gatewarden.yaml` -> `/opt/gatewarden/gatewarden.yaml`
+- `./gatewarden.yaml` -> `/config/gatewarden.yaml`
 - `./docker-data` -> `/opt/gatewarden/app/data`
 
 默认 compose 方案会：

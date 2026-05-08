@@ -634,6 +634,7 @@ export default function RulesPage() {
             searchPlaceholder={t("page.rules.search")}
             onSearch={setSearchValue}
             onExtraAction={handleMoreFilters}
+            showExtraAction
           />
 
           <PolicyTableCard

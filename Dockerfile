@@ -29,13 +29,14 @@ COPY gatewarden.yaml ./gatewarden.yaml
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN chmod +x /usr/local/bin/entrypoint.sh \
-  && mkdir -p /opt/gatewarden/app/data \
+  && mkdir -p /opt/gatewarden/app/data /config \
   && chown -R gatewarden:gatewarden /opt/gatewarden
 
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV CONSOLE_API_BASE_URL=http://127.0.0.1:4000
+ENV GATEWARDEN_CONFIG_PATH=/config/gatewarden.yaml
 
 EXPOSE 3000
 

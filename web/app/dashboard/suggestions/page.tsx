@@ -128,7 +128,6 @@ export default function SuggestionsPage() {
         onFilterChange={setActiveFilter}
         searchPlaceholder={t("page.suggestions.search")}
         onSearch={setSearchValue}
-        onExtraAction={() => toast.message(t("page.suggestions.toast.filterHelp"))}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

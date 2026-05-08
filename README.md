@@ -131,7 +131,7 @@ Port roles:
 
 Default mounts:
 
-- `./gatewarden.yaml` -> `/opt/gatewarden/gatewarden.yaml`
+- `./gatewarden.yaml` -> `/config/gatewarden.yaml`
 - `./docker-data` -> `/opt/gatewarden/app/data`
 
 The default compose setup:

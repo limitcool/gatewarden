@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{fs, net::SocketAddr, path::Path};
+use std::{env, fs, net::SocketAddr, path::{Path, PathBuf}};
 
 pub const DEFAULT_CONFIG_PATH: &str = "gatewarden.yaml";
+pub const CONFIG_PATH_ENV: &str = "GATEWARDEN_CONFIG_PATH";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -17,6 +18,15 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
+    pub fn config_path() -> PathBuf {
+        env::var(CONFIG_PATH_ENV)
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH))
+    }
+
     pub fn load() -> Result<Self> {
         let raw = Self::read_raw()?;
         let mut config = Self::parse_raw(&raw)?;
@@ -26,21 +36,28 @@ impl AppConfig {
     }
 
     pub fn read_raw() -> Result<String> {
-        fs::read_to_string(DEFAULT_CONFIG_PATH)
-            .with_context(|| format!("failed to read config file: {DEFAULT_CONFIG_PATH}"))
+        let path = Self::config_path();
+        fs::read_to_string(&path)
+            .with_context(|| format!("failed to read config file: {}", path.display()))
     }
 
     pub fn parse_raw(raw: &str) -> Result<Self> {
         let config: Self = serde_yaml::from_str(raw)
-            .with_context(|| format!("failed to parse config file: {DEFAULT_CONFIG_PATH}"))?;
+            .with_context(|| format!("failed to parse config file: {}", Self::config_path().display()))?;
         config.validate()?;
         Ok(config)
     }
 
     pub fn write_raw(raw: &str) -> Result<Self> {
         let config = Self::parse_raw(raw)?;
-        fs::write(DEFAULT_CONFIG_PATH, raw)
-            .with_context(|| format!("failed to write config file: {DEFAULT_CONFIG_PATH}"))?;
+        let path = Self::config_path();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create config directory: {}", parent.display())
+            })?;
+        }
+        fs::write(&path, raw)
+            .with_context(|| format!("failed to write config file: {}", path.display()))?;
         Ok(config)
     }
 
