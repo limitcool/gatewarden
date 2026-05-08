@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import {
   PageHeader,
   MetricCard,
@@ -24,18 +24,22 @@ export default function ApprovalsPage() {
   const [isPending, startTransition] = useTransition()
   const [data, setData] = useState<ApprovalsOverviewDto | null>(null)
 
-  const loadApprovals = async () => {
+  const loadApprovals = useCallback(async () => {
     try {
       const response = await getApprovalsOverview()
       setData(response.data)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("page.approvals.toast.loadError"))
     }
-  }
+  }, [t])
 
   useEffect(() => {
-    void loadApprovals()
-  }, [])
+    const timer = window.setTimeout(() => {
+      void loadApprovals()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadApprovals])
   const filters = useMemo(() => normalizeFilters(data?.filters ?? [], locale).map((f) => ({
     ...f,
     active: f.value === activeFilter,

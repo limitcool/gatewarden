@@ -3,6 +3,7 @@
 import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { HelperText, InsetPanel, MetaLabel } from "./primitives"
 import { ScopeBadge } from "./scope-badge"
 import { Lightbulb } from "lucide-react"
 
@@ -56,11 +57,11 @@ export function SuggestionCard({
             <div className="min-w-0 space-y-3.5">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-sm font-semibold text-foreground">{suggestion.title}</div>
-                <ScopeBadge variant="outline" className="rounded-full">
+                <ScopeBadge variant="outline">
                   {suggestion.badge}
                 </ScopeBadge>
                 {suggestion.confidence ? (
-                  <span className="text-[11px] text-muted-foreground">{t("component.suggestion.confidence")} {suggestion.confidence}</span>
+                  <span className="text-xs text-muted-foreground">{t("component.suggestion.confidence")} {suggestion.confidence}</span>
                 ) : null}
               </div>
 
@@ -69,32 +70,32 @@ export function SuggestionCard({
               </p>
 
               {suggestion.evidence && suggestion.evidence.length > 0 ? (
-                <div className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-3">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">{t("component.suggestion.evidence")}</div>
+                <InsetPanel className="space-y-2 p-3.5">
+                  <MetaLabel>{t("component.suggestion.evidence")}</MetaLabel>
                   <div className="space-y-1.5">
                     {suggestion.evidence.map((item, index) => (
-                      <p
+                      <HelperText
                         key={`${suggestion.id ?? suggestion.title}-evidence-${index}`}
-                        className="text-xs leading-relaxed text-muted-foreground"
+                        size="xs"
                       >
                         {item}
-                      </p>
+                      </HelperText>
                     ))}
                   </div>
-                </div>
+                </InsetPanel>
               ) : null}
 
               {suggestion.proposedRule ? (
-                <div className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-3">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">{t("component.suggestion.proposedRule")}</div>
-                  <code className="block whitespace-pre-wrap break-all text-[11px] leading-relaxed text-muted-foreground">
+                <InsetPanel className="space-y-2 p-3.5">
+                  <MetaLabel>{t("component.suggestion.proposedRule")}</MetaLabel>
+                  <code className="block whitespace-pre-wrap break-all text-xs leading-relaxed text-muted-foreground">
                     {suggestion.proposedRule}
                   </code>
-                </div>
+                </InsetPanel>
               ) : null}
 
               {suggestion.model || suggestion.generatedAt ? (
-                <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                   {suggestion.model ? <span>{suggestion.model}</span> : null}
                   {suggestion.generatedAt ? <span>{suggestion.generatedAt}</span> : null}
                 </div>
@@ -104,13 +105,15 @@ export function SuggestionCard({
             <div className="flex items-center gap-2 self-start lg:self-center">
               <Button
                 variant="outline"
-                size="pill"
+                size="sm"
+                className="min-h-11 rounded-lg px-3"
                 onClick={() => onSecondaryAction?.(suggestion)}
               >
                 {suggestion.secondaryAction}
               </Button>
               <Button
-                size="pill"
+                size="sm"
+                className="min-h-11 rounded-lg px-3"
                 onClick={() => onPrimaryAction?.(suggestion)}
               >
                 {suggestion.primaryAction}

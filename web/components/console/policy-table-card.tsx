@@ -65,8 +65,9 @@ export function PolicyTableCard({
             key={rule.id}
             type="button"
             onClick={() => onRuleClick?.(rule)}
+            aria-pressed={selectedRuleId === rule.id}
             className={cn(
-              "group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "group flex min-h-16 w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               selectedRuleId === rule.id && "bg-muted/40"
             )}
           >

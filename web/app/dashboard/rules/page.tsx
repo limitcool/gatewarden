@@ -1,8 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import {
+  ConsolePanel,
   PageHeader,
+  HelperText,
+  InsetPanel,
+  MetaLabel,
   MetricCard,
   MetricsGrid,
   FilterBar,
@@ -109,6 +113,38 @@ function buildRulePayload(params: {
   }
 }
 
+function formatPolicyStatus(status: string, t: (key: string, params?: Record<string, string | number>) => string) {
+  switch (status) {
+    case "active":
+      return t("component.status.active")
+    case "review":
+      return t("component.status.review")
+    case "shadow":
+      return t("component.status.shadow")
+    case "blocked":
+      return t("component.status.blocked")
+    case "info":
+      return t("component.status.info")
+    case "advisory":
+      return t("component.status.advisory")
+    default:
+      return status
+  }
+}
+
+function formatPolicyMode(mode: string, t: (key: string, params?: Record<string, string | number>) => string) {
+  switch (mode) {
+    case "enforce":
+      return t("component.policy.mode.enforce")
+    case "shadow":
+      return t("component.policy.mode.shadow")
+    case "advisory":
+      return t("component.policy.mode.advisory")
+    default:
+      return mode
+  }
+}
+
 export default function RulesPage() {
   const { t, locale } = useI18n()
   const [activeFilter, setActiveFilter] = useState<RuleFilter>("all")
@@ -130,28 +166,38 @@ export default function RulesPage() {
   const [isSavingRule, setIsSavingRule] = useState(false)
   const [isDeletingRule, setIsDeletingRule] = useState(false)
   const githubUrl = "https://github.com/limitcool/gatewarden"
+  const ruleNameId = useId()
+  const ruleSummaryId = useId()
+  const adminPrefixesId = useId()
+  const pathPrefixId = useId()
+  const rpsId = useId()
+  const burstId = useId()
 
-  const loadRules = async () => {
+  const loadRules = useCallback(async () => {
     try {
       const response = await getRulesOverview()
       setData(response.data)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("page.rules.toast.loadError"))
     }
-  }
+  }, [t])
 
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     try {
       const response = await getEventsOverview()
       setEventsData(response.data)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("page.events.toast.loadError"))
     }
-  }
+  }, [t])
 
   useEffect(() => {
-    void Promise.all([loadRules(), loadEvents()])
-  }, [])
+    const timer = window.setTimeout(() => {
+      void Promise.all([loadRules(), loadEvents()])
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadEvents, loadRules])
 
   const hostInventory = useMemo(() => {
     return buildHostInventory(
@@ -164,12 +210,6 @@ export default function RulesPage() {
   const selectedHostItem = hostInventory.find((item) => item.host === selectedHost) ?? hostInventory[0]
   const protectedHostCount = hostInventory.filter((item) => item.isConnected).length
   const caddyOnlyHostCount = hostInventory.filter((item) => !item.isConnected).length
-
-  useEffect(() => {
-    if (!selectedHostItem && hostInventory[0]) {
-      setSelectedHost(hostInventory[0].host)
-    }
-  }, [hostInventory, selectedHostItem])
 
   const filters = useMemo(
     () => [
@@ -215,8 +255,8 @@ export default function RulesPage() {
         { label: t("page.rules.detail.kind"), value: t(`component.policy.kind.${selectedRule.kind === "admin-protect" ? "admin" : selectedRule.kind === "rate-limit-ip" ? "rateLimitIp" : "rateLimitUser"}`), description: t("page.rules.detail.kindDescription") },
         { label: t("page.rules.detail.host"), value: selectedRule.host ?? t("page.rules.detail.global"), description: t("page.rules.detail.hostDescription") },
         { label: t("page.rules.detail.path"), value: selectedRule.pathPrefix ?? (selectedRule.adminPrefixes[0] ?? t("page.rules.detail.notSet")), description: t("page.rules.detail.pathDescription") },
-        { label: t("page.rules.detail.mode"), value: selectedRule.mode, description: t("page.rules.detail.modeDescription") },
-        { label: t("page.rules.detail.status"), value: selectedRule.status, description: t("page.rules.detail.statusDescription") },
+        { label: t("page.rules.detail.mode"), value: formatPolicyMode(selectedRule.mode, t), description: t("page.rules.detail.modeDescription") },
+        { label: t("page.rules.detail.status"), value: formatPolicyStatus(selectedRule.status, t), description: t("page.rules.detail.statusDescription") },
         { label: t("page.rules.detail.rateLimit"), value: selectedRule.rps && selectedRule.burst ? `${selectedRule.rps} / ${selectedRule.burst}` : t("page.rules.detail.notSet"), description: t("page.rules.detail.rateLimitDescription") },
         { label: t("page.rules.detail.source"), value: selectedRule.source === "approved-ai" ? t("component.policy.source.approvedAi") : t("component.policy.source.manual"), description: t("page.rules.detail.sourceDescription") },
       ]
@@ -248,6 +288,18 @@ export default function RulesPage() {
       },
     ]
   }, [rules, t])
+
+  const hostChipClassName = (item: (typeof hostInventory)[number], isSelected: boolean) => {
+    if (item.isConnected) {
+      return isSelected
+        ? "border-status-active/40 bg-status-active/15 text-status-active"
+        : "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
+    }
+
+    return isSelected
+      ? "border-status-error/40 bg-status-error/15 text-status-error"
+      : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15"
+  }
 
   const resetForm = (kind: PlaybookKind, host?: string) => {
     setEditingRuleName(null)
@@ -382,10 +434,6 @@ export default function RulesPage() {
     }
   }
 
-  useEffect(() => {
-    syncGeneratedFields(selectedPlaybook, selectedHostItem?.host ?? selectedHost ?? undefined, pathPrefixValue)
-  }, [selectedPlaybook, selectedHostItem?.host, selectedHost, pathPrefixValue])
-
   const handleMoreFilters = () => {
     toast.message(t("page.rules.toast.filterHelp"))
   }
@@ -499,13 +547,13 @@ export default function RulesPage() {
         description={t("page.rules.description")}
         actions={
           <>
-            <Button variant="outline" size="sm" className="h-9 rounded-lg px-2.5" asChild>
+            <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-2.5" asChild>
               <a href={githubUrl} target="_blank" rel="noreferrer">
                 <Github className="h-4 w-4" />
                 <span className="sr-only">{t("page.rules.github")}</span>
               </a>
             </Button>
-            <Button size="sm" className="h-9 rounded-lg" onClick={openCreateDialog}>
+            <Button size="sm" className="min-h-11 rounded-lg px-3" onClick={openCreateDialog}>
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               {t("page.rules.create")}
             </Button>
@@ -525,7 +573,7 @@ export default function RulesPage() {
         ))}
       </MetricsGrid>
 
-      <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+      <ConsolePanel>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -535,9 +583,7 @@ export default function RulesPage() {
                   {t("page.rules.hostCoverageTitle")}
                 </h2>
               </div>
-              <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-                {t("page.rules.hostCoverageDescription")}
-              </p>
+              <HelperText className="max-w-3xl">{t("page.rules.hostCoverageDescription")}</HelperText>
             </div>
             <div className="flex flex-wrap gap-2">
               {hostInventory.map((item) => (
@@ -546,16 +592,12 @@ export default function RulesPage() {
                   type="button"
                   onClick={() => setSelectedHost(item.host)}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                    selectedHostItem?.host === item.host
-                      ? "border-foreground bg-foreground text-background"
-                      : item.isConnected
-                        ? "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
-                        : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15"
+                    "inline-flex min-h-11 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors",
+                    hostChipClassName(item, selectedHostItem?.host === item.host)
                   )}
                 >
                   <span className="font-mono">{item.host}</span>
-                  <span className="text-[10px] opacity-80">
+                  <span className="text-xs opacity-80">
                     {item.isConnected ? t("page.rules.hostProtected") : t("page.rules.hostCaddyOnly")}
                   </span>
                 </button>
@@ -566,31 +608,23 @@ export default function RulesPage() {
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                {t("page.rules.hostProtected")}
-              </div>
+            <InsetPanel>
+              <MetaLabel>{t("page.rules.hostProtected")}</MetaLabel>
               <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
                 {protectedHostCount}
               </div>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {t("page.rules.hostProtectedCount", { count: protectedHostCount })}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                {t("page.rules.hostCaddyOnly")}
-              </div>
+              <HelperText className="mt-1">{t("page.rules.hostProtectedCount", { count: protectedHostCount })}</HelperText>
+            </InsetPanel>
+            <InsetPanel>
+              <MetaLabel>{t("page.rules.hostCaddyOnly")}</MetaLabel>
               <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
                 {caddyOnlyHostCount}
               </div>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {t("page.rules.hostCaddyOnlyCount", { count: caddyOnlyHostCount })}
-              </p>
-            </div>
+              <HelperText className="mt-1">{t("page.rules.hostCaddyOnlyCount", { count: caddyOnlyHostCount })}</HelperText>
+            </InsetPanel>
           </div>
         </div>
-      </div>
+      </ConsolePanel>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.95fr)]">
         <div className="space-y-6">
@@ -611,38 +645,34 @@ export default function RulesPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+          <ConsolePanel>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold tracking-tight text-foreground">
                   {t("page.rules.guideTitle")}
                 </div>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  {t("page.rules.guideDescription")}
-                </p>
+                <HelperText className="mt-1">{t("page.rules.guideDescription")}</HelperText>
               </div>
               <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
             </div>
 
             <div className="mt-5 space-y-4">
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+              <InsetPanel>
                 <div className="text-sm font-medium text-foreground">{t("page.rules.guideModelTitle")}</div>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {t("page.rules.guideModelDescription")}
-                </p>
+                <HelperText className="mt-2">{t("page.rules.guideModelDescription")}</HelperText>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={() => void handleCopyCaddy()}>
+                  <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-3" onClick={() => void handleCopyCaddy()}>
                     <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                     {t("page.rules.guideCopyCaddy")}
                   </Button>
-                  <Button variant="outline" size="sm" className="h-8 rounded-lg" asChild>
+                  <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-3" asChild>
                     <a href={githubUrl} target="_blank" rel="noreferrer">
                       <Github className="h-3.5 w-3.5 mr-1.5" />
                       {t("page.rules.githubDocs")}
                     </a>
                   </Button>
                 </div>
-              </div>
+              </InsetPanel>
 
               <div className="space-y-2">
                 <div className="text-sm font-medium text-foreground">{t("page.rules.guidePlaybookTitle")}</div>
@@ -656,40 +686,38 @@ export default function RulesPage() {
                         resetForm(playbook.kind, selectedHostItem?.host)
                         setIsCreateOpen(true)
                       }}
-                      className="rounded-xl border border-border/70 bg-background p-4 text-left transition-colors hover:bg-muted/20"
+                      className="rounded-xl border border-border/60 bg-background/70 p-4 text-left transition-colors hover:bg-muted/10"
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-semibold text-foreground">{playbook.title}</div>
-                        <Badge variant="outline" className="min-h-6 rounded-full text-[11px]">
-                          {playbook.status}
+                        <Badge variant="outline" className="min-h-6 rounded-full px-2 text-xs">
+                          {formatPolicyStatus(playbook.status, t)}
                         </Badge>
                       </div>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{playbook.summary}</p>
+                      <HelperText className="mt-2">{playbook.summary}</HelperText>
                     </button>
                   ))}
                 </div>
               </div>
 
               {selectedRule ? (
-                <div className="rounded-xl border border-border/70 bg-background p-4">
+                <InsetPanel>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium text-foreground">{t("page.rules.detail.quickActions")}</div>
-                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                        {t("page.rules.detail.quickActionsDescription")}
-                      </p>
+                      <HelperText className="mt-1">{t("page.rules.detail.quickActionsDescription")}</HelperText>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={() => openEditDialog(selectedRule)}>
+                      <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-3" onClick={() => openEditDialog(selectedRule)}>
                         <PencilLine className="h-3.5 w-3.5 mr-1.5" />
                         {t("page.rules.edit")}
                       </Button>
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
               ) : null}
             </div>
-          </div>
+          </ConsolePanel>
 
           <DetailListCard details={selectedDetails} title={t("page.rules.details")} />
         </div>
@@ -707,49 +735,41 @@ export default function RulesPage() {
           </DialogHeader>
 
           <div className="space-y-5">
-            <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+            <InsetPanel>
               <div className="text-sm font-medium text-foreground">{t("page.rules.ruleExplainTitle")}</div>
               <div className="mt-3 space-y-4">
-                <div className="rounded-lg border border-border/70 bg-background px-3 py-3">
+                <InsetPanel className="bg-background px-3.5 py-3.5">
                   <div className="text-sm font-semibold text-foreground">{selectedPlaybookDetail.title}</div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                        {t("page.rules.ruleExplainPurpose")}
-                      </div>
-                      <p className="text-sm leading-relaxed text-muted-foreground">{selectedPlaybookDetail.purpose}</p>
+                      <MetaLabel>{t("page.rules.ruleExplainPurpose")}</MetaLabel>
+                      <HelperText>{selectedPlaybookDetail.purpose}</HelperText>
                     </div>
                     <div className="space-y-1.5">
-                      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                        {t("page.rules.ruleExplainWhen")}
-                      </div>
-                      <p className="text-sm leading-relaxed text-muted-foreground">{selectedPlaybookDetail.when}</p>
+                      <MetaLabel>{t("page.rules.ruleExplainWhen")}</MetaLabel>
+                      <HelperText>{selectedPlaybookDetail.when}</HelperText>
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
 
                 <div className="space-y-2">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                    {t("page.rules.ruleExplainFields")}
-                  </div>
+                  <MetaLabel>{t("page.rules.ruleExplainFields")}</MetaLabel>
                   <div className="grid gap-2">
                     {selectedPlaybookDetail.fields.map((field) => (
-                      <div key={field.name} className="rounded-lg border border-border/70 bg-background px-3 py-3">
+                      <InsetPanel key={field.name} className="bg-background px-3.5 py-3.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-sm font-medium text-foreground">{field.name}</div>
-                          <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                          <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                             {field.example}
                           </code>
                         </div>
-                        <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
-                          {field.description}
-                        </p>
-                      </div>
+                        <HelperText className="mt-1.5 whitespace-pre-line">{field.description}</HelperText>
+                      </InsetPanel>
                     ))}
                   </div>
                 </div>
               </div>
-            </div>
+            </InsetPanel>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -764,20 +784,20 @@ export default function RulesPage() {
                         resetForm(playbook.kind, selectedHostItem?.host)
                       }}
                       className={cn(
-                        "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                        "rounded-xl border px-3.5 py-3 text-left transition-colors",
                         selectedPlaybook === playbook.kind
                           ? "border-foreground bg-muted/40"
-                          : "border-border/70 bg-background hover:bg-muted/20"
+                          : "border-border/60 bg-background/70 hover:bg-muted/10"
                       )}
                     >
                       <div className="text-sm font-medium text-foreground">{playbook.title}</div>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{playbook.summary}</p>
+                      <HelperText className="mt-1">{playbook.summary}</HelperText>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-4 rounded-xl border border-border/70 bg-background p-4">
+              <div className="space-y-4 rounded-xl border border-border/60 bg-background/70 p-4">
                 <div className="space-y-2">
                   <Label>{t("page.rules.ruleForm.host")}</Label>
                   <div className="flex flex-wrap gap-2">
@@ -790,31 +810,25 @@ export default function RulesPage() {
                           syncGeneratedFields(selectedPlaybook, item.host, pathPrefixValue)
                         }}
                         className={cn(
-                          "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                          selectedHostItem?.host === item.host
-                            ? "border-foreground bg-foreground text-background"
-                            : item.isConnected
-                              ? "border-status-active/30 bg-status-active/10 text-status-active hover:bg-status-active/15"
-                              : "border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/15"
+                          "inline-flex min-h-11 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors",
+                          hostChipClassName(item, selectedHostItem?.host === item.host)
                         )}
                       >
                         <span className="font-mono">{item.host}</span>
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {selectedHostItem?.isConnected ? t("page.rules.guideProtectedHint") : t("page.rules.guideCaddyOnlyHint")}
-                  </p>
+                  <HelperText>{selectedHostItem?.isConnected ? t("page.rules.guideProtectedHint") : t("page.rules.guideCaddyOnlyHint")}</HelperText>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{t("page.rules.ruleForm.name")}</Label>
-                  <Input value={ruleName} onChange={(event) => setRuleName(event.target.value)} placeholder="admin-protect-accounts-init-cool" />
+                  <Label htmlFor={ruleNameId}>{t("page.rules.ruleForm.name")}</Label>
+                  <Input id={ruleNameId} value={ruleName} onChange={(event) => setRuleName(event.target.value)} placeholder="admin-protect-accounts-init-cool" />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>{t("page.rules.ruleForm.summary")}</Label>
-                  <Textarea rows={3} value={ruleSummary} onChange={(event) => setRuleSummary(event.target.value)} placeholder={t("page.rules.createSummaryPlaceholder")} />
+                  <Label htmlFor={ruleSummaryId}>{t("page.rules.ruleForm.summary")}</Label>
+                  <Textarea id={ruleSummaryId} rows={3} value={ruleSummary} onChange={(event) => setRuleSummary(event.target.value)} placeholder={t("page.rules.createSummaryPlaceholder")} />
                 </div>
 
                 <div className="space-y-2">
@@ -826,20 +840,21 @@ export default function RulesPage() {
                         type="button"
                         variant={ruleMode === mode ? "secondary" : "outline"}
                         size="sm"
-                        className="h-8 rounded-lg"
+                        className="min-h-11 rounded-lg px-3"
                         onClick={() => setRuleMode(mode)}
                       >
                         {mode === "shadow" ? t("component.policy.mode.shadow") : t("component.policy.mode.enforce")}
                       </Button>
                     ))}
                   </div>
-                  <p className="text-xs leading-relaxed text-muted-foreground">{t("page.rules.ruleForm.modeHint")}</p>
+                  <HelperText>{t("page.rules.ruleForm.modeHint")}</HelperText>
                 </div>
 
                 {selectedPlaybook === "admin-protect" ? (
                   <div className="space-y-2">
-                    <Label>{t("page.rules.ruleForm.adminPrefixes")}</Label>
+                    <Label htmlFor={adminPrefixesId}>{t("page.rules.ruleForm.adminPrefixes")}</Label>
                     <Textarea
+                      id={adminPrefixesId}
                       rows={6}
                       value={adminPrefixesValue}
                       onChange={(event) => setAdminPrefixesValue(event.target.value)}
@@ -849,8 +864,9 @@ export default function RulesPage() {
                 ) : (
                   <>
                     <div className="space-y-2">
-                      <Label>{t("page.rules.ruleForm.pathPrefix")}</Label>
+                      <Label htmlFor={pathPrefixId}>{t("page.rules.ruleForm.pathPrefix")}</Label>
                       <Input
+                        id={pathPrefixId}
                         value={pathPrefixValue}
                         onChange={(event) => {
                           setPathPrefixValue(event.target.value)
@@ -861,12 +877,12 @@ export default function RulesPage() {
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>{t("page.rules.ruleForm.rps")}</Label>
-                        <Input type="number" min="1" value={rpsValue} onChange={(event) => setRpsValue(event.target.value)} />
+                        <Label htmlFor={rpsId}>{t("page.rules.ruleForm.rps")}</Label>
+                        <Input id={rpsId} type="number" min="1" value={rpsValue} onChange={(event) => setRpsValue(event.target.value)} />
                       </div>
                       <div className="space-y-2">
-                        <Label>{t("page.rules.ruleForm.burst")}</Label>
-                        <Input type="number" min="1" value={burstValue} onChange={(event) => setBurstValue(event.target.value)} />
+                        <Label htmlFor={burstId}>{t("page.rules.ruleForm.burst")}</Label>
+                        <Input id={burstId} type="number" min="1" value={burstValue} onChange={(event) => setBurstValue(event.target.value)} />
                       </div>
                     </div>
                   </>
@@ -878,17 +894,17 @@ export default function RulesPage() {
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
             <div>
               {editingRuleName ? (
-                <Button variant="outline" onClick={() => void handleDeleteRule()} disabled={isDeletingRule || isSavingRule}>
+                <Button variant="outline" size="sm" className="px-3 text-xs" onClick={() => void handleDeleteRule()} disabled={isDeletingRule || isSavingRule}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
                   {isDeletingRule ? t("page.rules.deleting") : t("page.rules.delete")}
                 </Button>
               ) : null}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              <Button variant="outline" size="sm" className="px-3 text-xs" onClick={() => setIsCreateOpen(false)}>
                 {t("page.rules.cancel")}
               </Button>
-              <Button onClick={() => void handleSaveRule()} disabled={isSavingRule || !selectedHostItem?.isConnected}>
+              <Button size="sm" className="px-3 text-xs" onClick={() => void handleSaveRule()} disabled={isSavingRule || !selectedHostItem?.isConnected}>
                 {isSavingRule ? t("common.saving") : editingRuleName ? t("page.rules.saveChanges") : t("page.rules.createDraft")}
               </Button>
             </div>

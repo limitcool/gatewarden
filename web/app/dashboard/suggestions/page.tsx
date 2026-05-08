@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   PageHeader,
   MetricCard,
@@ -27,18 +27,22 @@ export default function SuggestionsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    const loadSuggestions = async () => {
-      try {
-        const response = await getSuggestionsOverview()
-        setData(response.data)
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("page.suggestions.toast.loadError"))
-      }
+  const loadSuggestions = useCallback(async () => {
+    try {
+      const response = await getSuggestionsOverview()
+      setData(response.data)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("page.suggestions.toast.loadError"))
     }
+  }, [t])
 
-    void loadSuggestions()
-  }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadSuggestions()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadSuggestions])
 
   const filters = useMemo(() => normalizeFilters(data?.filters ?? [], locale).map((f) => ({
     ...f,

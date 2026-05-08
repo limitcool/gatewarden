@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { HelperText, MetaLabel } from "./primitives"
 import { StatusBadge, type StatusType } from "./status-badge"
 import type { LucideIcon } from "lucide-react"
 
@@ -30,9 +31,7 @@ export function MetricCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-3">
-          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-            {label}
-          </span>
+          <MetaLabel>{label}</MetaLabel>
           <div className="flex items-end gap-2">
             <span className="text-3xl font-semibold tracking-tight text-foreground sm:text-[2rem]">
               {value}
@@ -41,15 +40,13 @@ export function MetricCard({
           </div>
         </div>
         {Icon && (
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-secondary/60 text-foreground">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 bg-secondary/60 text-foreground">
             <Icon className="h-4 w-4" />
           </div>
         )}
       </div>
       {detail && (
-        <p className="max-w-[30ch] text-xs leading-relaxed text-muted-foreground">
-          {detail}
-        </p>
+        <HelperText size="xs" className="max-w-[30ch]">{detail}</HelperText>
       )}
     </div>
   )

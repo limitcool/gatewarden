@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Settings,
   ChevronLeft,
+  X,
   Menu,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -19,9 +20,11 @@ import { useI18n } from "@/components/i18n-provider"
 interface AppSidebarProps {
   collapsed?: boolean
   onToggle?: () => void
+  onNavigate?: () => void
+  mobile?: boolean
 }
 
-export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
+export function AppSidebar({ collapsed = false, onToggle, onNavigate, mobile = false }: AppSidebarProps) {
   const pathname = usePathname()
   const { t } = useI18n()
 
@@ -67,23 +70,34 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
     >
       <div className="flex h-16 items-center border-b border-sidebar-border px-4">
         {!collapsed && (
-          <Link href="/dashboard/default" className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+          <Link href="/dashboard/default" onClick={onNavigate} className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
               <Shield className="h-4 w-4" />
             </div>
             <div className="space-y-0.5">
               <span className="block text-sm font-semibold tracking-tight text-sidebar-foreground">
                 Gatewarden
               </span>
-              <span className="block text-[11px] text-sidebar-foreground/60">
-                AI WAF Console
+              <span className="block text-xs text-sidebar-foreground/60">
+                {t("shell.consoleSubtitle")}
               </span>
             </div>
           </Link>
         )}
+        {mobile && !collapsed ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            aria-label={t("shell.closeMenu")}
+            className="ml-auto h-11 w-11 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : null}
         {collapsed && (
           <div className="flex items-center justify-center w-full">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sidebar-border bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
               <Shield className="h-4 w-4" />
             </div>
           </div>
@@ -97,12 +111,14 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.name}
+              onClick={onNavigate}
               className={cn(
-                "flex h-10 items-center gap-3 rounded-lg border border-transparent px-3 text-sm font-medium transition-colors",
+                "flex min-h-11 items-center gap-3 rounded-lg border border-transparent px-3 text-sm font-medium transition-colors",
                 collapsed && "justify-center",
                 isActive
                   ? "border-sidebar-border bg-background text-sidebar-foreground shadow-sm"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                  : "text-sidebar-foreground/70 hover:border-sidebar-border/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
               )}
             >
               <item.icon className="h-4 w-4 shrink-0" />
@@ -117,8 +133,10 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
           variant="ghost"
           size="sm"
           onClick={onToggle}
+          aria-label={collapsed ? t("shell.openMenu") : t("shell.collapse")}
+          aria-expanded={!collapsed}
           className={cn(
-            "h-9 w-full rounded-lg border border-transparent text-sidebar-foreground/70 hover:border-sidebar-border hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+            "min-h-11 w-full rounded-lg border border-transparent text-sidebar-foreground/70 hover:border-sidebar-border hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
             collapsed && "justify-center"
           )}
         >
@@ -127,7 +145,7 @@ export function AppSidebar({ collapsed = false, onToggle }: AppSidebarProps) {
           ) : (
             <>
               <ChevronLeft className="h-4 w-4 mr-2" />
-              <span className="text-xs">{t("shell.collapse")}</span>
+              <span className="text-sm">{t("shell.collapse")}</span>
             </>
           )}
         </Button>

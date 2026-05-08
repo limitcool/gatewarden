@@ -21,6 +21,14 @@ export function DashboardShellClient({ children }: { children: React.ReactNode }
     void loadLocale()
   }, [])
 
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return
+    }
+    document.documentElement.lang = locale
+    document.cookie = `gatewarden-locale=${locale}; path=/; max-age=31536000; samesite=lax`
+  }, [locale])
+
   return (
     <I18nProvider locale={locale} setLocale={setLocale}>
       <DashboardShell>{children}</DashboardShell>

@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
+import { HelperText, MetaLabel } from "./primitives"
 
 interface DetailItem {
   label: string
@@ -33,17 +34,13 @@ export function DetailListCard({
         {details.map((detail, index) => (
           <div key={index} className="space-y-2 px-4 py-3.5">
             <div className="flex items-start justify-between gap-4">
-              <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
-                {detail.label}
-              </span>
+              <MetaLabel className="shrink-0">{detail.label}</MetaLabel>
               <span className="max-w-[65%] text-right text-sm font-medium leading-relaxed text-foreground break-words">
                 {detail.value}
               </span>
             </div>
             {detail.description && (
-              <p className="max-w-[36ch] text-xs leading-relaxed text-muted-foreground">
-                {detail.description}
-              </p>
+              <HelperText size="xs" className="max-w-[36ch]">{detail.description}</HelperText>
             )}
           </div>
         ))}

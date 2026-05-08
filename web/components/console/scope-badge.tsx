@@ -13,7 +13,7 @@ export function ScopeBadge({ children, variant = "default", className }: ScopeBa
   return (
     <Badge
       variant={variant === "default" ? "secondary" : "outline"}
-      className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium", className)}
+      className={cn("min-h-7 rounded-full px-2.5 py-0.5 text-xs font-medium tracking-[0.01em]", className)}
     >
       {children}
     </Badge>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   PageHeader,
   MetricCard,
@@ -28,22 +28,26 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardOverviewDto | null>(null)
   const [liveEvents, setLiveEvents] = useState<ReturnType<typeof normalizeEventRows>>([])
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        const [dashboardResponse, eventsResponse] = await Promise.all([
-          getDashboardOverview(),
-          getEventsOverview(),
-        ])
-        setData(dashboardResponse.data)
-        setLiveEvents(normalizeEventRows(eventsResponse.data.stream, locale))
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("page.overview.toast.loadError"))
-      }
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [dashboardResponse, eventsResponse] = await Promise.all([
+        getDashboardOverview(),
+        getEventsOverview(),
+      ])
+      setData(dashboardResponse.data)
+      setLiveEvents(normalizeEventRows(eventsResponse.data.stream, locale))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("page.overview.toast.loadError"))
     }
+  }, [locale, t])
 
-    void loadDashboard()
-  }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadDashboard()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadDashboard])
 
   const actions = normalizeActions(data?.actions ?? [], locale)
   const stats = buildLiveEventStats(liveEvents, locale)

@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import { useI18n } from "@/components/i18n-provider"
 import { AppSidebar } from "./app-sidebar"
 import { Topbar } from "./topbar"
-import { cn } from "@/lib/utils"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -12,16 +13,10 @@ interface DashboardShellProps {
 export function DashboardShell({ children }: DashboardShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const { t } = useI18n()
 
   return (
-    <div className="flex h-screen overflow-hidden bg-muted/30">
-      {mobileSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-        />
-      )}
-
+    <div className="flex h-screen overflow-hidden bg-muted/20">
       <div className="hidden lg:flex">
         <AppSidebar
           collapsed={sidebarCollapsed}
@@ -29,19 +24,25 @@ export function DashboardShell({ children }: DashboardShellProps) {
         />
       </div>
 
-      <div
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-200",
-          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        <AppSidebar onToggle={() => setMobileSidebarOpen(false)} />
-      </div>
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent
+          side="left"
+          className="w-[17rem] border-r border-sidebar-border bg-sidebar p-0 sm:max-w-none lg:hidden"
+        >
+          <SheetTitle className="sr-only">{t("shell.navigationTitle")}</SheetTitle>
+          <AppSidebar
+            mobile
+            onToggle={() => setMobileSidebarOpen(false)}
+            onNavigate={() => setMobileSidebarOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar
           showMenuButton
-          onMenuClick={() => setMobileSidebarOpen(true)}
+          mobileMenuOpen={mobileSidebarOpen}
+          onMenuClick={() => setMobileSidebarOpen((current) => !current)}
         />
         <main className="flex-1 overflow-y-auto bg-muted/20">
           <div className="mx-auto max-w-7xl px-5 py-6 lg:px-8 lg:py-8">

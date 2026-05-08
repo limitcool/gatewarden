@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next'
-import { Analytics } from '@vercel/analytics/next'
+import { cookies } from 'next/headers'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://github.com/limitcool/gatewarden'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://gatewarden.init.cool'),
   title: 'Gatewarden',
   description: 'Open-source AI WAF for self-hosted apps, built for Caddy, trusted identity headers, deterministic enforcement, and reviewable AI-assisted security operations.',
   openGraph: {
@@ -27,18 +27,21 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fafafa' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+    { media: '(prefers-color-scheme: light)', color: 'oklch(0.985 0 0)' },
+    { media: '(prefers-color-scheme: dark)', color: 'oklch(0.1 0 0)' },
   ],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const cookieStore = await cookies()
+  const locale = cookieStore.get('gatewarden-locale')?.value === 'en' ? 'en' : 'zh-CN'
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className="font-sans antialiased bg-background">
         <ThemeProvider
           attribute="class"
@@ -49,7 +52,6 @@ export default function RootLayout({
           {children}
           <Toaster richColors position="top-right" />
         </ThemeProvider>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )

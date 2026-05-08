@@ -4,6 +4,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/components/i18n-provider"
+import { HelperText, InsetPanel, MetaLabel } from "./primitives"
 import { 
   Globe, 
   MapPin, 
@@ -63,7 +64,12 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
   const [copied, setCopied] = useState(false)
   const notCaptured = t("common.notCaptured")
   const unknown = t("common.unknown")
-  const hasValidIp = ipInfo.ip !== notCaptured && ipInfo.ip !== unknown && ipInfo.ip.trim().length > 0
+  const ipUnavailable = t("component.ip.unavailable")
+  const hasValidIp =
+    ipInfo.ip !== notCaptured &&
+    ipInfo.ip !== unknown &&
+    ipInfo.ip !== ipUnavailable &&
+    ipInfo.ip.trim().length > 0
 
   const copyIP = () => {
     if (!hasValidIp) return
@@ -80,13 +86,13 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
         <h3 className="text-sm font-semibold tracking-tight text-foreground">{t("component.ip.title")}</h3>
         <div className="flex items-center gap-2">
           {onViewHistory && (
-            <Button variant="ghost" size="pill" onClick={onViewHistory}>
+            <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-3" onClick={onViewHistory}>
               <Clock className="h-3.5 w-3.5 mr-1" />
               {t("component.ip.history")}
             </Button>
           )}
           {onBlock && (
-            <Button variant="ghost" size="pill" className="text-destructive hover:text-destructive" onClick={onBlock}>
+            <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-3 text-destructive hover:text-destructive" onClick={onBlock}>
               <Shield className="h-3.5 w-3.5 mr-1" />
               {t("component.ip.block")}
             </Button>
@@ -95,20 +101,21 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
       </div>
 
       <div className="space-y-4 p-4">
-        <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+        <InsetPanel>
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
-            <code className={cn(
+              <code className={cn(
                 "truncate text-lg font-mono font-medium text-foreground",
-              ipInfo.version === "IPv6" ? "text-sm" : ""
-            )}>
-              {ipInfo.ip}
-            </code>
-              <Badge variant="outline" className="min-h-6 text-[10px]">
-              {ipInfo.version}
-            </Badge>
-          </div>
-            <Button variant="ghost" size="sm" className="h-8 w-8 rounded-lg p-0" onClick={copyIP} disabled={!hasValidIp}>
+                !hasValidIp && "text-muted-foreground",
+                ipInfo.version === "IPv6" ? "text-sm" : ""
+              )}>
+                {ipInfo.ip}
+              </code>
+              <Badge variant="outline" className="min-h-6 text-xs">
+                {ipInfo.version}
+              </Badge>
+            </div>
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-lg" onClick={copyIP} disabled={!hasValidIp}>
               <Copy className={cn("h-3.5 w-3.5", copied && "text-status-active")} />
             </Button>
           </div>
@@ -123,41 +130,41 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
           {(ipInfo.isProxy || ipInfo.isVPN || ipInfo.isTor || ipInfo.isDatacenter || ipInfo.isBot) && (
             <div className="mt-4 flex flex-wrap gap-1.5">
               {ipInfo.isProxy && (
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-xs">
                   <Wifi className="h-3 w-3 mr-1" />
                   {t("component.ip.proxy")}
                 </Badge>
               )}
               {ipInfo.isVPN && (
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-xs">
                   <Shield className="h-3 w-3 mr-1" />
                   VPN
                 </Badge>
               )}
               {ipInfo.isTor && (
-                <Badge variant="destructive" className="text-[10px]">
+                <Badge variant="destructive" className="text-xs">
                   {t("component.ip.torExit")}
                 </Badge>
               )}
               {ipInfo.isDatacenter && (
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-xs">
                   <Server className="h-3 w-3 mr-1" />
                   {t("component.ip.datacenter")}
                 </Badge>
               )}
               {ipInfo.isBot && (
-                <Badge variant="destructive" className="text-[10px]">
+                <Badge variant="destructive" className="text-xs">
                   {t("component.ip.bot")}
                 </Badge>
               )}
             </div>
           )}
-        </div>
+        </InsetPanel>
 
-        <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
-          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+        <InsetPanel>
+          <div className="flex items-center gap-2">
             <MapPin className="h-3.5 w-3.5" />
-            <span>{t("component.ip.location")}</span>
+            <MetaLabel>{t("component.ip.location")}</MetaLabel>
           </div>
           <div className="mt-3 space-y-1.5 text-sm">
             <div className="flex items-center gap-2">
@@ -173,17 +180,17 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
               </div>
             )}
             {ipInfo.timezone && (
-              <div className="text-xs text-muted-foreground">
+              <HelperText size="xs">
                 {t("component.ip.timezone")}: {ipInfo.timezone}
-              </div>
+              </HelperText>
             )}
           </div>
-        </div>
+        </InsetPanel>
 
-        <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
-          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+        <InsetPanel>
+          <div className="flex items-center gap-2">
             <Building2 className="h-3.5 w-3.5" />
-            <span>{t("component.ip.network")}</span>
+            <MetaLabel>{t("component.ip.network")}</MetaLabel>
           </div>
           <div className="mt-3 space-y-1.5 text-sm">
             {ipInfo.asn && (
@@ -198,13 +205,13 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
               </div>
             )}
           </div>
-        </div>
+        </InsetPanel>
 
         {(ipInfo.requestCount !== undefined || ipInfo.lastSeen || ipInfo.firstSeen) && (
-          <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
-            <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/80">
+          <InsetPanel>
+            <div className="flex items-center gap-2">
               <Clock className="h-3.5 w-3.5" />
-              <span>{t("component.ip.activity")}</span>
+              <MetaLabel>{t("component.ip.activity")}</MetaLabel>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               {ipInfo.requestCount !== undefined && (
@@ -226,7 +233,7 @@ export function IPDetailCard({ ipInfo, className, onViewHistory, onBlock }: IPDe
                 </div>
               )}
             </div>
-          </div>
+          </InsetPanel>
         )}
 
         {hasValidIp && (

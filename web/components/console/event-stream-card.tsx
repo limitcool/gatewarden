@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/components/i18n-provider"
 import { AlertCircle, AlertTriangle, Info, CheckCircle } from "lucide-react"
+import { HelperText } from "./primitives"
 
 type Severity = "critical" | "warning" | "info" | "success"
 
@@ -67,8 +68,8 @@ export function EventStreamCard({
             >
               <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", config.className)} />
               <div className="flex-1 min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">{event.title}</p>
-                <p className="truncate text-xs leading-relaxed text-muted-foreground">{event.subtitle}</p>
+                <p className="truncate text-sm font-medium text-foreground" title={event.title}>{event.title}</p>
+                <HelperText size="xs" className="line-clamp-2 break-words" title={event.subtitle}>{event.subtitle}</HelperText>
               </div>
               {event.timestamp && (
                 <span className="text-xs text-muted-foreground shrink-0">{event.timestamp}</span>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -120,7 +120,13 @@ export function AdvancedFilter({
 }: AdvancedFilterProps) {
   const { t } = useI18n()
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [localSearch, setLocalSearch] = useState(searchValue)
+  const searchInputId = useId()
+  const ipVersionLabelId = useId()
+  const severityLabelId = useId()
+  const statusCodeLabelId = useId()
+  const hostLabelId = useId()
+  const countryLabelId = useId()
+  const proxySignalsLabelId = useId()
 
   const defaultIpVersionOptions = [
     { label: t("common.all"), value: "all" },
@@ -151,7 +157,6 @@ export function AdvancedFilter({
   const resolvedStatusCodeOptions = statusCodeOptions.length > 0 ? statusCodeOptions : defaultStatusCodeOptions
 
   const handleSearchChange = (value: string) => {
-    setLocalSearch(value)
     onSearch?.(value)
   }
 
@@ -189,11 +194,11 @@ export function AdvancedFilter({
               variant={filter.active ? "secondary" : "ghost"}
               size="sm"
               onClick={() => onFilterChange?.(filter.value)}
-              className="text-xs"
+              className="min-h-11 rounded-lg px-3 text-xs"
             >
               {filter.label}
               {filter.count !== undefined && (
-                <Badge variant="secondary" className="ml-1.5 min-h-5 px-1.5 text-[11px] bg-muted">
+                <Badge variant="secondary" className="ml-1.5 min-h-5 px-1.5 text-xs bg-muted">
                   {filter.count}
                 </Badge>
               )}
@@ -202,22 +207,28 @@ export function AdvancedFilter({
         </div>
 
         {/* 右侧：搜索和高级筛选 */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
           {/* 搜索框 */}
-          <div className="relative w-full lg:w-80">
+          <div className="relative min-w-0 flex-1 basis-full lg:w-80 lg:max-w-80 lg:basis-auto lg:flex-none">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Label htmlFor={searchInputId} className="sr-only">
+              {searchPlaceholder || t("component.filter.searchPlaceholder")}
+            </Label>
             <Input
-              value={localSearch}
+              id={searchInputId}
+              value={searchValue}
+              aria-label={searchPlaceholder || t("component.filter.searchPlaceholder")}
               placeholder={searchPlaceholder || t("component.filter.searchPlaceholder")}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="h-9 pl-8 pr-9 text-sm"
+              className="min-h-11 rounded-lg border-border/80 bg-muted/20 pl-8 pr-11 text-sm shadow-none"
             />
-            {localSearch && (
+            {searchValue && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute right-0.5 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                className="absolute right-0.5 top-1/2 h-11 w-11 -translate-y-1/2 rounded-lg p-0"
                 onClick={() => handleSearchChange("")}
+                aria-label={t("common.clearAll")}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -227,23 +238,23 @@ export function AdvancedFilter({
           {/* 高级筛选 */}
           <Popover open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs">
+              <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-3 text-xs">
                 <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
                 {t("component.filter.advanced")}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
+            <PopoverContent className="w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border-border/80 p-4 shadow-md sm:w-[22rem]" align="end">
               <div className="space-y-4">
-                <div className="font-medium text-sm">{t("component.filter.advanced")}</div>
+                <div className="text-sm font-semibold tracking-tight text-foreground">{t("component.filter.advanced")}</div>
                 
                 {/* IP 版本 */}
                 <div className="space-y-2">
-                  <Label className="text-xs flex items-center gap-1.5">
+                  <Label id={ipVersionLabelId} className="text-xs flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5" />
                     {t("component.filter.ipVersion")}
                   </Label>
                   <Select onValueChange={onIPVersionChange} value={ipVersionValue}>
-                    <SelectTrigger className="h-9 text-xs">
+                    <SelectTrigger className="text-xs" aria-labelledby={ipVersionLabelId}>
                       <SelectValue placeholder={t("component.filter.ipVersionPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -258,12 +269,12 @@ export function AdvancedFilter({
 
                 {/* 严重程度 */}
                 <div className="space-y-2">
-                  <Label className="text-xs flex items-center gap-1.5">
+                  <Label id={severityLabelId} className="text-xs flex items-center gap-1.5">
                     <Tag className="h-3.5 w-3.5" />
                     {t("component.filter.severity")}
                   </Label>
                   <Select onValueChange={onSeverityChange} value={severityValue}>
-                    <SelectTrigger className="h-9 text-xs">
+                    <SelectTrigger className="text-xs" aria-labelledby={severityLabelId}>
                       <SelectValue placeholder={t("component.filter.severityPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -278,12 +289,12 @@ export function AdvancedFilter({
 
                 {/* 状态码 */}
                 <div className="space-y-2">
-                  <Label className="text-xs flex items-center gap-1.5">
+                  <Label id={statusCodeLabelId} className="text-xs flex items-center gap-1.5">
                     <CircleDashed className="h-3.5 w-3.5" />
                     {t("component.filter.statusCode")}
                   </Label>
                   <Select onValueChange={onStatusCodeChange} value={statusCodeValue}>
-                    <SelectTrigger className="h-9 text-xs">
+                    <SelectTrigger className="text-xs" aria-labelledby={statusCodeLabelId}>
                       <SelectValue placeholder={t("component.filter.statusCodePlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -299,12 +310,12 @@ export function AdvancedFilter({
                 {/* 域名 */}
                 {hostOptions.length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1.5">
+                    <Label id={hostLabelId} className="text-xs flex items-center gap-1.5">
                       <Globe className="h-3.5 w-3.5" />
                       {t("component.filter.host")}
                     </Label>
                     <Select onValueChange={onHostChange} value={hostValue}>
-                      <SelectTrigger className="h-9 text-xs">
+                      <SelectTrigger className="text-xs" aria-labelledby={hostLabelId}>
                         <SelectValue placeholder={t("component.filter.hostPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -322,12 +333,12 @@ export function AdvancedFilter({
                 {/* 国家/地区 */}
                 {countryOptions.length > 0 && (
                   <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1.5">
+                    <Label id={countryLabelId} className="text-xs flex items-center gap-1.5">
                       <Globe className="h-3.5 w-3.5" />
                       {t("component.filter.country")}
                     </Label>
                     <Select onValueChange={onCountryChange} value={countryValue}>
-                      <SelectTrigger className="h-9 text-xs">
+                      <SelectTrigger className="text-xs" aria-labelledby={countryLabelId}>
                         <SelectValue placeholder={t("component.filter.countryPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
@@ -345,33 +356,33 @@ export function AdvancedFilter({
                 {/* 代理检测 */}
                 {proxyFilters && (
                   <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-1.5">
+                    <Label id={proxySignalsLabelId} className="text-xs flex items-center gap-1.5">
                       <Shield className="h-3.5 w-3.5" />
                       {t("component.filter.proxySignals")}
                     </Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
+                    <div className="grid gap-2 sm:grid-cols-2" aria-labelledby={proxySignalsLabelId} role="group">
+                      <label className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.vpn}
                           onCheckedChange={(checked) => handleProxyChange("vpn", !!checked)}
                         />
                         {t("component.filter.vpn")}
                       </label>
-                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
+                      <label className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.proxy}
                           onCheckedChange={(checked) => handleProxyChange("proxy", !!checked)}
                         />
                         {t("component.filter.proxy")}
                       </label>
-                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
+                      <label className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.tor}
                           onCheckedChange={(checked) => handleProxyChange("tor", !!checked)}
                         />
                         {t("component.filter.tor")}
                       </label>
-                      <label className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs cursor-pointer hover:bg-muted/60">
+                      <label className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs cursor-pointer hover:bg-muted/60">
                         <Checkbox
                           checked={proxyFilters.datacenter}
                           onCheckedChange={(checked) => handleProxyChange("datacenter", !!checked)}
@@ -382,8 +393,8 @@ export function AdvancedFilter({
                   </div>
                 )}
 
-                <div className="flex justify-end pt-2 border-t border-border">
-                  <Button size="sm" className="text-xs" onClick={() => setAdvancedOpen(false)}>
+                <div className="flex justify-end pt-2 border-t border-border/80">
+                  <Button size="sm" className="min-h-11 rounded-lg px-4 text-xs" onClick={() => setAdvancedOpen(false)}>
                     {t("common.apply")}
                   </Button>
                 </div>
@@ -395,8 +406,8 @@ export function AdvancedFilter({
           {onRefresh && (
             <Button 
               variant="ghost" 
-              size="sm" 
-              className="w-9 p-0" 
+              size="icon"
+              className="rounded-lg border border-transparent hover:border-border/80 hover:bg-muted/40" 
               onClick={onRefresh}
               disabled={isRefreshing}
             >
@@ -412,7 +423,7 @@ export function AdvancedFilter({
           <Button
             variant={hostValue === "all" ? "secondary" : "ghost"}
             size="sm"
-            className="text-xs"
+            className="min-h-11 rounded-full px-3 text-xs"
             onClick={() => onHostChange?.("all")}
           >
             {t("common.all")}
@@ -422,11 +433,11 @@ export function AdvancedFilter({
               key={host.value}
               size="sm"
               variant="outline"
-              className={cn("text-xs", hostButtonClassName(host.status, hostValue === host.value))}
+              className={cn("min-h-11 rounded-full px-3 text-xs", hostButtonClassName(host.status, hostValue === host.value))}
               onClick={() => onHostChange?.(host.value)}
             >
               {host.label}
-              {host.status === "unprotected" && <span className="ml-1 text-[11px]">{t("common.unprotected")}</span>}
+              {host.status === "unprotected" && <span className="ml-1 text-xs">{t("common.unprotected")}</span>}
             </Button>
           ))}
         </div>
@@ -440,7 +451,7 @@ export function AdvancedFilter({
             <button
               key={filter.key}
               type="button"
-              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-transparent bg-secondary px-2.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-transparent bg-secondary px-3 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => onRemoveFilter?.(filter.key)}
             >
               {filter.label}: {filter.value}
@@ -451,7 +462,7 @@ export function AdvancedFilter({
             <Button
               variant="ghost"
               size="sm"
-              className="text-xs text-muted-foreground"
+              className="min-h-11 rounded-lg px-3 text-xs text-muted-foreground"
               onClick={onClearAllFilters}
             >
               {t("common.clearAll")}

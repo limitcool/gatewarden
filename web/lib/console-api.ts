@@ -88,6 +88,7 @@ const zhExactTextMap: Record<string, string> = {
   "Stored events": "存储事件",
   "404 responses": "404 响应",
   "Avg latency": "平均耗时",
+  "P95 latency": "P95 耗时",
   "5xx responses": "5xx 响应",
   "Auth-linked": "关联身份",
   "Anonymous": "匿名请求",
@@ -173,6 +174,8 @@ function translateText(text: string, locale: Locale = "zh-CN") {
     [/Recent requests that reached an application or Caddy route miss/gi, "最近到达应用或命中 Caddy 路由缺失的请求数量"],
     [/Average request duration derived from structured Caddy logs/gi, "基于 Caddy 结构化日志计算的平均请求耗时"],
     [/Recent upstream failures and internal server errors/gi, "最近的上游失败与内部服务错误数量"],
+    [/Recent upstream and proxy failures observed from Caddy access logs/gi, "最近从 Caddy 访问日志中观测到的上游与代理失败次数"],
+    [/Recent request latency percentile derived from structured access logs/gi, "基于结构化访问日志计算的最近请求延迟分位值"],
     [/Events with TinyAuth subject context/gi, "带有身份上下文的事件数量"],
     [/Events without authenticated subject context/gi, "未带身份上下文的事件数量"],
     [/Live persisted rules inside the deterministic policy store/gi, "当前确定性策略存储中的实时规则"],
@@ -373,13 +376,17 @@ function translateHostStatus(status?: string | null): HostStatus {
   return "unknown"
 }
 
-function parseEventSubtitle(subtitle: string) {
+function emptyPlaceholder(locale: Locale = "zh-CN") {
+  return isZh(locale) ? "未识别" : "Unavailable"
+}
+
+function parseEventSubtitle(subtitle: string, locale: Locale = "zh-CN") {
   const asMatch = subtitle.match(/^([A-Z]+)\s+(\S+)\s+from\s+(\S+)(?:\s+as\s+(.+))?$/)
   if (!asMatch) {
     return {
       method: "GET",
       path: "/",
-      ip: "未采集",
+      ip: emptyPlaceholder(locale),
       subject: undefined as string | undefined,
     }
   }
@@ -422,7 +429,7 @@ function translateRuleSummary(summary: string, ruleName?: string, locale: Locale
 
 export function normalizeEventRows(events: EventItemDto[], locale: Locale = "zh-CN") {
   return events.map((event, index) => {
-    const parsed = parseEventSubtitle(event.subtitle)
+    const parsed = parseEventSubtitle(event.subtitle, locale)
     const ipVersion: "IPv4" | "IPv6" = parsed.ip.includes(":") ? "IPv6" : "IPv4"
     const loweredTitle = event.title.toLowerCase()
     const statusCode =
@@ -463,11 +470,11 @@ export function normalizeEventRows(events: EventItemDto[], locale: Locale = "zh-
   })
 }
 
-export function defaultIpInfoFromEventRows(rows: ReturnType<typeof normalizeEventRows>, locale: Locale = "zh-CN") {
+export function defaultIpInfoFromEventRows(rows: EventRow[], locale: Locale = "zh-CN") {
   const first = rows[0]
   if (!first) {
     return {
-      ip: isZh(locale) ? "未采集" : "Not captured",
+      ip: emptyPlaceholder(locale),
       version: "IPv4" as const,
       country: isZh(locale) ? "未知" : "Unknown",
       city: isZh(locale) ? "未知" : "Unknown",
@@ -742,21 +749,18 @@ export async function getSettingsOverview() {
 }
 
 export async function updateSettings(settings: Partial<SettingsStateDto> & { config?: AppConfigDto }) {
-  const current = await getSettingsOverview()
-  const currentSettings = current.data.settings
-
   return request<ConsoleResponse<SettingsOverviewDto>>("/api/console/settings", {
     method: "PUT",
     headers: {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      subject_header: settings.subjectHeader ?? currentSettings.subjectHeader,
-      email_header: settings.emailHeader ?? currentSettings.emailHeader,
-      locale: settings.locale ?? currentSettings.locale,
-      notes: settings.notes ?? currentSettings.notes,
-      shadow_mode_enabled: settings.shadowModeEnabled ?? currentSettings.shadowModeEnabled,
-      raw_yaml: settings.rawYaml ?? currentSettings.rawYaml,
+      subject_header: settings.subjectHeader,
+      email_header: settings.emailHeader,
+      locale: settings.locale,
+      notes: settings.notes,
+      shadow_mode_enabled: settings.shadowModeEnabled,
+      raw_yaml: settings.rawYaml,
       config: settings.config,
     }),
   })

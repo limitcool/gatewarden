@@ -10,7 +10,6 @@ export { ActionListCard, type ActionListItem } from "./action-list-card"
 export { ApprovalQueueCard } from "./approval-queue-card"
 export { SuggestionCard } from "./suggestion-card"
 export { DetailListCard } from "./detail-list-card"
-export { SettingsFormCard, type SettingsFormValues } from "./settings-form-card"
 export { ActionCard } from "./action-card"
 export { AppSidebar } from "./app-sidebar"
 export { Topbar } from "./topbar"
@@ -18,6 +17,7 @@ export { DashboardShell } from "./dashboard-shell"
 export { IPDetailCard, type IPInfo } from "./ip-detail-card"
 export { AdvancedFilter, type ProxyFilters } from "./advanced-filter"
 export { EventTable, type EventRow } from "./event-table"
+export { ConsolePanel, InsetPanel, MetaLabel, HelperText } from "./primitives"
 export {
   RequestTrendChart,
   GeoDistributionChart,

@@ -27,6 +27,22 @@ function getSystemTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+function getStoredTheme(defaultTheme: Theme) {
+  if (typeof window === 'undefined') {
+    return defaultTheme
+  }
+
+  return (window.localStorage.getItem('gatewarden-theme') as Theme | null) ?? defaultTheme
+}
+
+function resolveThemeValue(theme: Theme, enableSystem: boolean) {
+  if (theme === 'system') {
+    return enableSystem ? getSystemTheme() : 'dark'
+  }
+
+  return theme
+}
+
 function applyThemeToDom(attribute: string, theme: Theme, enableSystem: boolean) {
   if (typeof document === 'undefined') {
     return getSystemTheme()
@@ -52,17 +68,14 @@ export function ThemeProvider({
   defaultTheme = 'system',
   enableSystem = true,
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = React.useState<Theme>(defaultTheme)
+  const [theme, setThemeState] = React.useState<Theme>(() => getStoredTheme(defaultTheme))
   const [resolvedTheme, setResolvedTheme] = React.useState<'light' | 'dark'>(() =>
-    defaultTheme === 'system' && enableSystem ? 'dark' : (defaultTheme === 'system' ? 'dark' : defaultTheme)
+    resolveThemeValue(getStoredTheme(defaultTheme), enableSystem)
   )
 
   React.useEffect(() => {
-    const storedTheme = window.localStorage.getItem('gatewarden-theme') as Theme | null
-    const nextTheme = storedTheme ?? defaultTheme
-    setThemeState(nextTheme)
-    setResolvedTheme(applyThemeToDom(attribute, nextTheme, enableSystem))
-  }, [attribute, defaultTheme, enableSystem])
+    applyThemeToDom(attribute, theme, enableSystem)
+  }, [attribute, enableSystem, theme])
 
   React.useEffect(() => {
     if (!enableSystem || theme !== 'system') {

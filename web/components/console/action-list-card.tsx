@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { HelperText } from "./primitives"
 import { ScopeBadge } from "./scope-badge"
 import type { LucideIcon } from "lucide-react"
 
@@ -66,26 +67,26 @@ export function ActionListCard<TItem extends ActionListItem>({
                   {item.badge}
                 </ScopeBadge>
                 {item.meta ? (
-                  <span className="text-[11px] text-muted-foreground">{item.meta}</span>
+                  <span className="text-xs text-muted-foreground">{item.meta}</span>
                 ) : null}
               </div>
-              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                {item.summary}
-              </p>
+              <HelperText className="max-w-2xl">{item.summary}</HelperText>
             </div>
 
             <div className="flex items-center gap-2 self-start lg:self-center">
               {item.secondaryAction ? (
                 <Button
                   variant="outline"
-                  size="pill"
+                  size="sm"
+                  className="min-h-11 rounded-lg px-3"
                   onClick={() => onSecondaryAction?.(item)}
                 >
                   {item.secondaryAction}
                 </Button>
               ) : null}
               <Button
-                size="pill"
+                size="sm"
+                className="min-h-11 rounded-lg px-3"
                 onClick={() => onPrimaryAction?.(item)}
               >
                 {item.primaryAction}

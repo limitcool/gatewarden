@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { useI18n } from "@/components/i18n-provider"
 import { cn } from "@/lib/utils"
+import { HelperText } from "./primitives"
 import {
   Area,
   AreaChart,
@@ -57,16 +58,16 @@ function axisTick() {
 
 function ChartCard({ title, subtitle, trend, children, className }: ChartCardProps) {
   return (
-    <section className={cn("rounded-xl border border-border bg-card p-4", className)}>
+    <section className={cn("rounded-xl border border-border/80 bg-card p-4 shadow-sm", className)}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <h3 className="text-sm font-medium text-foreground">{title}</h3>
-          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
+          {subtitle ? <HelperText size="xs">{subtitle}</HelperText> : null}
         </div>
         {trend ? (
           <div
             className={cn(
-              "inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 text-xs font-medium",
+              "inline-flex min-h-6 items-center gap-1 rounded-full border px-2.5 text-xs font-medium",
               trend.value > 0
                 ? "border-status-active/30 bg-status-active/10 text-status-active"
                 : trend.value < 0
@@ -274,11 +275,11 @@ export function IPVersionChart({ ipv4, ipv6, className }: IPVersionChartProps) {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
-          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+          <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5">
             <div className="text-xs text-muted-foreground">{t("component.chart.ipv4Requests")}</div>
             <div className="mt-1 font-medium text-foreground">{ipv4.toLocaleString()}</div>
           </div>
-          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+          <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5">
             <div className="text-xs text-muted-foreground">{t("component.chart.ipv6Requests")}</div>
             <div className="mt-1 font-medium text-foreground">{ipv6.toLocaleString()}</div>
           </div>
@@ -345,14 +346,14 @@ export function TopAttackersList({ data, className, onIPClick }: TopAttackersPro
           <button
             key={item.ip}
             type="button"
-            className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2.5 py-2.5 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             onClick={() => onIPClick?.(item.ip)}
           >
             <span className="w-5 shrink-0 text-xs text-muted-foreground">{index + 1}</span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <code className={cn("min-w-0 truncate font-mono text-sm text-foreground", item.version === "IPv6" && "text-xs")}>{item.ip}</code>
-                <span className="inline-flex min-h-5 items-center rounded-full border border-border px-1.5 text-[11px] text-muted-foreground">
+                <span className="inline-flex min-h-5 items-center rounded-full border border-border px-1.5 text-xs text-muted-foreground">
                   {item.version}
                 </span>
               </div>

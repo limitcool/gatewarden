@@ -1,9 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   PageHeader,
+  ConsolePanel,
+  HelperText,
+  InsetPanel,
   MetricCard,
+  MetaLabel,
   MetricsGrid,
   AdvancedFilter,
   EventTable,
@@ -27,6 +31,107 @@ import { useI18n } from "@/components/i18n-provider"
 
 const iconMap = [Activity, TrendingDown, Clock]
 
+function matchesStatusCodeFilter(statusCode: number, statusCodeFilter: string) {
+  return (
+    statusCodeFilter === "all" ||
+    (statusCodeFilter === "2xx" && statusCode >= 200 && statusCode < 300) ||
+    (statusCodeFilter === "4xx" && statusCode >= 400 && statusCode < 500) ||
+    (statusCodeFilter === "5xx" && statusCode >= 500 && statusCode < 600) ||
+    statusCode.toString() === statusCodeFilter
+  )
+}
+
+function getResponseStats(rows: EventRow[]) {
+  const responseTimes = rows
+    .map((row) => row.responseTime)
+    .filter((value): value is number => value !== undefined)
+    .sort((left, right) => left - right)
+
+  const responseTimeCount = responseTimes.length
+  const responseTimeSum = responseTimes.reduce((sum, value) => sum + value, 0)
+  const slowRequests = responseTimes.filter((value) => value >= 1000).length
+  const errorResponses = rows.filter((row) => row.statusCode >= 400).length
+
+  return {
+    average: responseTimeCount > 0 ? Math.round(responseTimeSum / responseTimeCount) : 0,
+    p95: responseTimeCount > 0 ? responseTimes[Math.max(0, Math.ceil(responseTimeCount * 0.95) - 1)] : 0,
+    slowRequests,
+    errorRate: rows.length > 0 ? Math.round((errorResponses / rows.length) * 100) : 0,
+  }
+}
+
+function filterEventRows(
+  rows: EventRow[],
+  params: {
+    activeFilter: string
+    searchValue: string
+    ipVersionFilter: string
+    severityFilter: string
+    statusCodeFilter: string
+    hostFilter: string
+    countryFilter: string
+    proxyFilters: ProxyFilters
+  }
+) {
+  const {
+    activeFilter,
+    searchValue,
+    ipVersionFilter,
+    severityFilter,
+    statusCodeFilter,
+    hostFilter,
+    countryFilter,
+    proxyFilters,
+  } = params
+
+  const keyword = searchValue.trim().toLowerCase()
+
+  return rows
+    .filter((event) => {
+      const matchesFilter =
+        activeFilter === "all" ||
+        event.severity === activeFilter ||
+        (activeFilter === "blocked" && event.statusCode >= 400) ||
+        (activeFilter === "passed" && event.statusCode < 400)
+
+      const matchesSearch =
+        keyword.length === 0 ||
+        event.ip.toLowerCase().includes(keyword) ||
+        event.path.toLowerCase().includes(keyword) ||
+        (event.host ?? "").toLowerCase().includes(keyword) ||
+        (event.subject ?? "").toLowerCase().includes(keyword) ||
+        (event.rule ?? "").toLowerCase().includes(keyword)
+
+      const matchesIpVersion =
+        ipVersionFilter === "all" ||
+        (ipVersionFilter === "ipv4" && event.ipVersion === "IPv4") ||
+        (ipVersionFilter === "ipv6" && event.ipVersion === "IPv6")
+
+      const matchesSeverity = severityFilter === "all" || event.severity === severityFilter
+      const matchesHost = hostFilter === "all" || event.host === hostFilter
+      const matchesCountry = countryFilter === "all" || event.countryCode === countryFilter
+      const matchesProxy =
+        (!proxyFilters.vpn || event.isVPN) &&
+        (!proxyFilters.proxy || event.isProxy) &&
+        (!proxyFilters.tor || event.isTor) &&
+        (!proxyFilters.datacenter || event.isDatacenter)
+
+      const matchesStatusCode = matchesStatusCodeFilter(event.statusCode, statusCodeFilter)
+
+      return (
+        matchesFilter &&
+        matchesSearch &&
+        matchesIpVersion &&
+        matchesSeverity &&
+        matchesHost &&
+        matchesCountry &&
+        matchesProxy &&
+        matchesStatusCode
+      )
+    })
+    .sort((left, right) => (right.responseTime ?? -1) - (left.responseTime ?? -1))
+}
+
 export default function EventsPage() {
   const { locale, t } = useI18n()
   const [activeFilter, setActiveFilter] = useState("all")
@@ -45,6 +150,7 @@ export default function EventsPage() {
     datacenter: false,
   })
   const [showStats, setShowStats] = useState(true)
+  const [showHostInventory, setShowHostInventory] = useState(true)
   const [data, setData] = useState<EventsOverviewDto | null>(null)
 
   const severityLabelMap = useMemo(
@@ -71,18 +177,22 @@ export default function EventsPage() {
     [t]
   )
 
-  useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        const response = await getEventsOverview()
-        setData(response.data)
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("page.events.toast.loadError"))
-      }
+  const loadEvents = useCallback(async () => {
+    try {
+      const response = await getEventsOverview()
+      setData(response.data)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("page.events.toast.loadError"))
     }
+  }, [t])
 
-    void loadEvents()
-  }, [])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadEvents()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadEvents])
 
   const handleRefresh = () => {
     setIsRefreshing(true)
@@ -146,75 +256,29 @@ export default function EventsPage() {
   }))
 
   const rawEventRows = useMemo(() => normalizeEventRows(data?.stream ?? [], locale), [data?.stream, locale])
-  const connectedHosts = data?.protectedHosts ?? []
-  const observedHosts = data?.observedHosts ?? []
+  const responseStats = useMemo(() => getResponseStats(rawEventRows), [rawEventRows])
   const hostInventory = useMemo(
-    () => buildHostInventory(connectedHosts, observedHosts, rawEventRows),
-    [connectedHosts, observedHosts, rawEventRows]
+    () => buildHostInventory(data?.protectedHosts ?? [], data?.observedHosts ?? [], rawEventRows),
+    [data?.protectedHosts, data?.observedHosts, rawEventRows]
   )
-  const eventRows = useMemo(() => {
-    return rawEventRows.filter((event) => {
-      const matchesFilter =
-        activeFilter === "all" ||
-        event.severity === activeFilter ||
-        (activeFilter === "blocked" && event.statusCode >= 400) ||
-        (activeFilter === "passed" && event.statusCode < 400)
-      const keyword = searchValue.trim().toLowerCase()
-      const matchesSearch =
-        keyword.length === 0 ||
-        event.ip.toLowerCase().includes(keyword) ||
-        event.path.toLowerCase().includes(keyword) ||
-        (event.host ?? "").toLowerCase().includes(keyword) ||
-        (event.subject ?? "").toLowerCase().includes(keyword) ||
-        (event.rule ?? "").toLowerCase().includes(keyword)
-
-      const matchesIpVersion =
-        ipVersionFilter === "all" ||
-        (ipVersionFilter === "ipv4" && event.ipVersion === "IPv4") ||
-        (ipVersionFilter === "ipv6" && event.ipVersion === "IPv6")
-
-      const matchesSeverity =
-        severityFilter === "all" || event.severity === severityFilter
-
-      const matchesHost =
-        hostFilter === "all" || event.host === hostFilter
-
-      const matchesCountry =
-        countryFilter === "all" || event.countryCode === countryFilter
-
-      const matchesProxy =
-        (!proxyFilters.vpn || event.isVPN) &&
-        (!proxyFilters.proxy || event.isProxy) &&
-        (!proxyFilters.tor || event.isTor) &&
-        (!proxyFilters.datacenter || event.isDatacenter)
-
-      const matchesStatusCode =
-        statusCodeFilter === "all" ||
-        (statusCodeFilter === "2xx" && event.statusCode >= 200 && event.statusCode < 300) ||
-        (statusCodeFilter === "4xx" && event.statusCode >= 400 && event.statusCode < 500) ||
-        (statusCodeFilter === "5xx" && event.statusCode >= 500 && event.statusCode < 600) ||
-        event.statusCode.toString() === statusCodeFilter
-
-      return (
-        matchesFilter &&
-        matchesSearch &&
-        matchesIpVersion &&
-        matchesSeverity &&
-        matchesHost &&
-        matchesCountry &&
-        matchesProxy &&
-        matchesStatusCode
-      )
-    }).sort((a, b) => {
-      const left = a.responseTime ?? -1
-      const right = b.responseTime ?? -1
-      return right - left
-    })
-  }, [rawEventRows, activeFilter, searchValue, ipVersionFilter, severityFilter, hostFilter, countryFilter, proxyFilters, statusCodeFilter])
+  const eventRows = useMemo(
+    () =>
+      filterEventRows(rawEventRows, {
+        activeFilter,
+        searchValue,
+        ipVersionFilter,
+        severityFilter,
+        statusCodeFilter,
+        hostFilter,
+        countryFilter,
+        proxyFilters,
+      }),
+    [activeFilter, countryFilter, hostFilter, ipVersionFilter, proxyFilters, rawEventRows, searchValue, severityFilter, statusCodeFilter]
+  )
 
   const fallbackIpInfo = defaultIpInfoFromEventRows(eventRows, locale)
   const stats = buildLiveEventStats(rawEventRows, locale)
-  const countryOptions = buildCountryOptions(rawEventRows)
+  const countryOptions = useMemo(() => buildCountryOptions(rawEventRows), [rawEventRows])
   const hostOptions = useMemo(() => {
     const inventoryMap = new Map(hostInventory.map((item) => [item.host, item]))
     return buildHostOptions(rawEventRows).map((option) => ({
@@ -224,7 +288,7 @@ export default function EventsPage() {
   }, [hostInventory, rawEventRows])
   const activeFilters = useMemo(() => {
     const filters: { key: string; label: string; value: string }[] = []
-    const countryOption = buildCountryOptions(rawEventRows).find((option) => option.value === countryFilter)
+    const countryOption = countryOptions.find((option) => option.value === countryFilter)
     const hostOption = hostOptions.find((option) => option.value === hostFilter)
 
     if (ipVersionFilter !== "all") {
@@ -244,23 +308,36 @@ export default function EventsPage() {
     }
 
     return filters
-  }, [countryFilter, hostFilter, hostOptions, ipVersionFilter, rawEventRows, severityFilter, severityLabelMap, statusCodeFilter, statusCodeLabelMap, t])
-  const responseStats = useMemo(() => {
-    const withResponseTime = rawEventRows.filter((row) => row.responseTime !== undefined)
-    const count = withResponseTime.length
-    const average = count > 0
-      ? Math.round(withResponseTime.reduce((sum, row) => sum + (row.responseTime ?? 0), 0) / count)
-      : 0
-    const sorted = withResponseTime
-      .map((row) => row.responseTime ?? 0)
-      .sort((a, b) => a - b)
-    const p95 = count > 0 ? sorted[Math.max(0, Math.ceil(count * 0.95) - 1)] : 0
-    const slowRequests = withResponseTime.filter((row) => (row.responseTime ?? 0) >= 1000).length
-    const errorResponses = rawEventRows.filter((row) => row.statusCode >= 400).length
-    const errorRate = rawEventRows.length > 0 ? Math.round((errorResponses / rawEventRows.length) * 100) : 0
-
-    return { average, p95, slowRequests, errorRate }
-  }, [rawEventRows])
+  }, [countryFilter, countryOptions, hostFilter, hostOptions, ipVersionFilter, severityFilter, severityLabelMap, statusCodeFilter, statusCodeLabelMap, t])
+  const priorityMetrics = useMemo(
+    () => [
+      {
+        label: t("page.events.metric.avgResponse"),
+        value: `${responseStats.average}ms`,
+        detail: t("page.events.metric.avgResponseDetail"),
+        icon: Clock,
+      },
+      {
+        label: t("page.events.metric.errorRate"),
+        value: `${responseStats.errorRate}%`,
+        detail: t("page.events.metric.errorRateDetail"),
+        icon: Activity,
+      },
+      {
+        label: t("page.events.metric.p95"),
+        value: `${responseStats.p95}ms`,
+        detail: t("page.events.metric.p95Detail"),
+        icon: TrendingDown,
+      },
+      {
+        label: t("page.events.metric.slowRequests"),
+        value: responseStats.slowRequests,
+        detail: t("page.events.metric.slowRequestsDetail"),
+        icon: Clock,
+      },
+    ],
+    [responseStats, t]
+  )
 
   return (
     <div className="space-y-8">
@@ -268,30 +345,51 @@ export default function EventsPage() {
         title={t("page.events.title")}
         description={t("page.events.description")}
         action={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowStats(!showStats)}
-          >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            {showStats ? t("page.events.hideStats") : t("page.events.showStats")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-11 rounded-lg px-3 text-xs"
+              onClick={() => setShowHostInventory((current) => !current)}
+            >
+              {showHostInventory ? t("page.events.hideCoverage") : t("page.events.showCoverage")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-11 rounded-lg px-3 text-xs"
+              onClick={() => setShowStats(!showStats)}
+            >
+              <BarChart3 className="mr-2 h-4 w-4" />
+              {showStats ? t("page.events.hideStats") : t("page.events.showStats")}
+            </Button>
+          </div>
         }
       />
 
-      {hostInventory.length > 0 && (
-        <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+      <MetricsGrid columns={4} className="lg:hidden">
+        {priorityMetrics.map((metric) => (
+          <MetricCard
+            key={metric.label}
+            label={metric.label}
+            value={metric.value}
+            detail={metric.detail}
+            icon={metric.icon}
+          />
+        ))}
+      </MetricsGrid>
+
+      {showHostInventory && hostInventory.length > 0 && (
+        <ConsolePanel>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <div className="text-sm font-semibold tracking-tight text-foreground">
                   {t("page.events.hostInventoryTitle")}
                 </div>
-                <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                  {t("page.events.hostInventoryDescription")}
-                </p>
+                <HelperText className="max-w-2xl">{t("page.events.hostInventoryDescription")}</HelperText>
               </div>
-              <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
+              <InsetPanel>
                 <div className="flex flex-wrap gap-2">
                   {hostInventory.map((item) => (
                     <button
@@ -299,7 +397,7 @@ export default function EventsPage() {
                       type="button"
                       onClick={() => handleHostChange(item.host)}
                       className={[
-                        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                        "inline-flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-xs font-medium transition-colors",
                         hostFilter === item.host
                           ? "border-foreground bg-foreground text-background"
                           : item.isConnected
@@ -308,49 +406,45 @@ export default function EventsPage() {
                       ].join(" ")}
                     >
                       <span className="font-mono">{item.host}</span>
-                      <span className="text-[10px] opacity-80">
+                      <span className="text-xs opacity-80">
                         {item.isConnected ? t("common.protected") : t("common.unprotected")}
                       </span>
                     </button>
                   ))}
                   {hostFilter !== "all" && (
-                    <Button variant="ghost" size="pill" onClick={() => handleHostChange("all")}>
+                    <Button variant="outline" size="sm" className="min-h-11 rounded-lg px-3 text-xs" onClick={() => handleHostChange("all")}>
                       {t("page.events.clearHostFilter")}
                     </Button>
                   )}
                 </div>
-              </div>
+              </InsetPanel>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                  {t("common.protected")}
-                </div>
+              <InsetPanel>
+                <MetaLabel>{t("common.protected")}</MetaLabel>
                 <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
                   {hostInventory.filter((item) => item.isConnected).length}
                 </div>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                <HelperText className="mt-1">
                   {t("page.events.hostInventoryProtected", {
                     count: hostInventory.filter((item) => item.isConnected).length,
                   })}
-                </p>
-              </div>
-              <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
-                  {t("common.unprotected")}
-                </div>
+                </HelperText>
+              </InsetPanel>
+              <InsetPanel>
+                <MetaLabel>{t("common.unprotected")}</MetaLabel>
                 <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
                   {hostInventory.filter((item) => !item.isConnected).length}
                 </div>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                <HelperText className="mt-1">
                   {t("page.events.hostInventoryUnprotected", {
                     count: hostInventory.filter((item) => !item.isConnected).length,
                   })}
-                </p>
-              </div>
+                </HelperText>
+              </InsetPanel>
             </div>
           </div>
-        </div>
+        </ConsolePanel>
       )}
 
       {showStats && (
@@ -371,7 +465,7 @@ export default function EventsPage() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-5">
-            <MetricsGrid columns={3}>
+            <MetricsGrid columns={3} className="hidden lg:grid">
               {normalizeMetrics(data?.metrics ?? [], locale).map((metric, index) => (
                 <MetricCard
                   key={metric.label}
@@ -382,7 +476,7 @@ export default function EventsPage() {
                 />
               ))}
             </MetricsGrid>
-            <MetricsGrid columns={4}>
+            <MetricsGrid columns={4} className="hidden lg:grid">
               <MetricCard
                 label={t("page.events.metric.avgResponse")}
                 value={`${responseStats.average}ms`}
