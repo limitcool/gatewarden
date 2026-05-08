@@ -705,6 +705,7 @@ mod tests {
         body::{Body, to_bytes},
         http::Request,
     };
+    use ingress_api::{ConsoleResponse, SettingsOverviewDto};
     use serde_json::Value;
     use std::{
         path::PathBuf,
@@ -949,18 +950,24 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method(Method::GET)
-                    .uri("/api/forward-auth")
-                    .header("x-forwarded-uri", "/admin")
-                    .header("x-forwarded-host", "app.example.test")
-                    .header("x-forwarded-proto", "https")
-                    .header("x-forwarded-for", "198.51.100.99")
+                    .uri(routes::SETTINGS)
+                    .header("Remote-User", "alice")
+                    .header("Remote-Email", "alice@example.com")
+                    .header("Remote-Groups", "admin,ops")
                     .body(Body::empty())
                     .expect("request should build"),
             )
             .await
             .expect("request should complete");
 
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("response body should read");
+        let payload: ConsoleResponse<SettingsOverviewDto> =
+            serde_json::from_slice(&body).expect("settings response should deserialize");
+        assert!(!payload.data.settings.shadow_mode_enabled);
     }
 
     #[tokio::test]
